@@ -1,21 +1,15 @@
 import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
 import { WorkspaceStoreProvider } from "@/providers/workspace-store-provider";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
+import { getCachedAuth } from "./cached-auth";
 
 type AppLayoutProps = {
   children: ReactNode;
 };
 
 export default async function AppLayout({ children }: AppLayoutProps) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
-
-  if (error || !data?.claims) {
-    redirect("/login");
-  }
+  const data = await getCachedAuth();
 
   const email =
     typeof data.claims.email === "string"

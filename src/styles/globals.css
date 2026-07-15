@@ -8,7 +8,7 @@
     var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    var(--font-geist-mono), ui-monospace, SFMono-Regular, Roboto Mono, Menlo,
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, "Roboto Mono", Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 

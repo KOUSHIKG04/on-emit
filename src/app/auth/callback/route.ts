@@ -6,7 +6,10 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const requestedNext = requestUrl.searchParams.get("next") ?? "/app";
-  const next = requestedNext.startsWith("/") ? requestedNext : "/app";
+  const next =
+    requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+      ? requestedNext
+      : "/app";
 
   if (!code) {
     return NextResponse.redirect(

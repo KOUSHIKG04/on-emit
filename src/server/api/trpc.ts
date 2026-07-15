@@ -28,9 +28,13 @@ import { db } from "@/server/db";
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const supabase = await createClient();
 
-  const { data } = await supabase.auth.getClaims();
-
-  const userId = data?.claims?.sub ?? null;
+  let userId: string | null = null;
+  try {
+    const { data } = await supabase.auth.getClaims();
+    userId = data?.claims?.sub ?? null;
+  } catch {
+    // Rejected claims lookup should not abort context creation for public procedures.
+  }
 
   return {
     db,
