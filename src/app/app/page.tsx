@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
+import { ViewSwitcher } from "@/components/workspace/view-switcher";
 
 export default async function AppPage() {
   const supabase = await createClient();
@@ -21,6 +22,9 @@ export default async function AppPage() {
         <p className="text-primary text-sm font-medium">
           Authentication successful
         </p>
+        <div className="mt-6">
+          <ViewSwitcher />
+        </div>
         <h1 className="mt-2 text-3xl font-semibold">Your workspace</h1>
 
         <Card className="mt-8">
