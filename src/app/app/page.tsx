@@ -1,58 +1,36 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { ViewSwitcher } from "@/components/workspace/view-switcher";
 import { IntegrationStatus } from "@/components/integrations/integration-status";
-import { getCachedAuth } from "@/app/app/cached-auth";
+import { ViewSwitcher } from "@/components/workspace/view-switcher";
+import { WorkspaceContent } from "@/components/workspace/workspace-content";
 
-export default async function AppPage() {
-  const data = await getCachedAuth();
-
-  const userId = data.claims.sub;
-  const email =
-    typeof data.claims.email === "string" ? data.claims.email : null;
-
+export default function AppPage() {
   return (
-    <main className="p-8">
-      <div className="mx-auto max-w-5xl">
-        <p className="text-primary text-sm font-medium">
-          Authentication successful
-        </p>
-        <div className="mt-6">
+    <main className="px-6 py-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div>
+            <p className="text-primary text-sm font-medium">
+              Live Gmail and Calendar
+            </p>
+
+            <h1 className="mt-1 text-3xl font-semibold">
+              Your focus workspace
+            </h1>
+
+            <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
+              View your important conversations and upcoming schedule without
+              switching between Gmail and Google Calendar.
+            </p>
+          </div>
+
           <ViewSwitcher />
         </div>
-        <h1 className="mt-2 text-3xl font-semibold">Your workspace</h1>
-
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Account connection</CardTitle>
-            <CardDescription>
-              This Supabase identity will isolate the user&apos;s Corsair data.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-4">
-              <div>
-                <dt className="text-muted-foreground text-sm">Supabase user</dt>
-                <dd className="mt-1">{email ?? "No email available"}</dd>
-              </div>
-
-              <div>
-                <dt className="text-muted-foreground text-sm">
-                  Future Corsair tenant ID
-                </dt>
-                <dd className="mt-1 font-mono text-sm break-all">{userId}</dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
 
         <div className="mt-6">
           <IntegrationStatus />
+        </div>
+
+        <div className="mt-6">
+          <WorkspaceContent />
         </div>
       </div>
     </main>

@@ -1,35 +1,58 @@
 "use client";
 
-import { CalendarDays, Inbox } from "lucide-react";
+import { CalendarDays, Inbox, Sparkles } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
+import type { WorkspaceView } from "@/stores/workspace-store";
+
+const views: Array<{
+  value: WorkspaceView;
+  label: string;
+  icon: typeof Sparkles;
+}> = [
+  {
+    value: "focus",
+    label: "Focus",
+    icon: Sparkles,
+  },
+  {
+    value: "inbox",
+    label: "Inbox",
+    icon: Inbox,
+  },
+  {
+    value: "calendar",
+    label: "Calendar",
+    icon: CalendarDays,
+  },
+];
 
 export function ViewSwitcher() {
   const activeView = useWorkspaceStore((state) => state.activeView);
-
-  const setActiveView = useWorkspaceStore((state) => state.setActiveView);
+  
+  const setActiveView = 
+        useWorkspaceStore((state) => state.setActiveView);
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        type="button"
-        variant={activeView === "inbox" ? "default" : "outline"}
-        aria-pressed={activeView === "inbox"}
-        onClick={() => setActiveView("inbox")}
-      >
-        <Inbox />
-        Inbox
-      </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      {views.map((view) => {
+        const Icon = view.icon;
+        const active = activeView === view.value;
 
-      <Button
-        type="button"
-        variant={activeView === "calendar" ? "default" : "outline"}
-        aria-pressed={activeView === "calendar"}
-        onClick={() => setActiveView("calendar")}
-      >
-        <CalendarDays />
-        Calendar
-      </Button>
+        return (
+          <Button
+            key={view.value}
+            type="button"
+            variant={active ? "default" : "outline"}
+            aria-pressed={active}
+            onClick={() => setActiveView(view.value)}
+          >
+            <Icon />
+            {view.label}
+          </Button>
+        );
+      })}
     </div>
   );
 }

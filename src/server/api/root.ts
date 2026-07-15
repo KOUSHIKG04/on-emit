@@ -1,6 +1,8 @@
 import { accountRouter } from "@/server/api/routers/account";
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 import { integrationsRouter } from "@/server/api/routers/integrations";
+import { calendarRouter } from "@/server/api/routers/calendar";
+import { gmailRouter } from "@/server/api/routers/gmail";
 
 /**
  * This is the primary router for your server.
@@ -9,8 +11,10 @@ import { integrationsRouter } from "@/server/api/routers/integrations";
  */
 export const appRouter = createTRPCRouter({
   account: accountRouter,
-  integrations: integrationsRouter,
   // post: postRouter,
+  integrations: integrationsRouter,
+  gmail: gmailRouter,
+  calendar: calendarRouter,
 });
 
 // export type definition of API
