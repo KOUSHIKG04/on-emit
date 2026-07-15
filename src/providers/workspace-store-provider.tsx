@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import {
@@ -24,12 +24,11 @@ export function WorkspaceStoreProvider({
   children,
   initialState,
 }: WorkspaceStoreProviderProps) {
-  const storeRef = useRef<WorkspaceStoreContextValue | null>(null);
-
-  storeRef.current ??= createWorkspaceStore(initialState);
+  
+  const [store] = useState(() => createWorkspaceStore(initialState));
 
   return (
-    <WorkspaceStoreContext.Provider value={storeRef.current}>
+    <WorkspaceStoreContext.Provider value={store}>
       {children}
     </WorkspaceStoreContext.Provider>
   );
