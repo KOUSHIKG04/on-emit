@@ -12,6 +12,10 @@ export const corsair = createCorsair({
   database: connections,
   kek: env.CORSAIR_KEK,
   multiTenancy: true,
+  manual: {
+    baseUrl: new URL("/connect", env.APP_URL).toString(),
+    redirectUri: new URL("/api/corsair/oauth/callback", env.APP_URL).toString(),
+  },
 });
 
 export function getTenantCorsair(tenantId: string) {

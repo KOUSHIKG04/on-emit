@@ -1,8 +1,9 @@
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsair, getTenantCorsair } from "@/server/corsair";
-import { z } from "zod";
+import { createRawEmail } from "@/server/email/create-raw-email";
 import {
   createSafeParsedMessage,
   parseGmailRaw,
@@ -81,7 +82,63 @@ function toISOString(
   return date.toISOString();
 }
 
+const emailAddress = z.string().trim().email().max(320);
+
+const sendEmailInput = z.object({
+  to: z.array(emailAddress).min(1).max(50),
+  cc: z.array(emailAddress).max(50).default([]),
+  subject: z
+    .string()
+    .trim()
+    .min(1)
+    .max(998)
+    .refine((value) => !/[\r\n]/.test(value), {
+      message: "Subject cannot contain line breaks.",
+    }),
+  body: z.string().min(1).max(100_000),
+});
+
 export const gmailRouter = createTRPCRouter({
+  send: protectedProcedure
+    .input(sendEmailInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const connectionStatus = await corsair.manage.connectionStatus.get({
+          tenantId: ctx.userId,
+        });
+
+        if (connectionStatus.gmail !== "connected") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Connect Gmail before sending an email.",
+          });
+        }
+
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const raw = createRawEmail(input);
+        const message = await tenantCorsair.gmail.api.messages.send({
+          userId: "me",
+          raw,
+        });
+
+        return {
+          id: message.id ?? null,
+          threadId: message.threadId ?? null,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        console.error("Failed to send Gmail message:", error);
+
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "Gmail could not send this message. Please try again.",
+        });
+      }
+    }),
+
   inbox: protectedProcedure.query(async ({ ctx }) => {
     try {
       /*
