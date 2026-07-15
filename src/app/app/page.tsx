@@ -1,37 +1,27 @@
 import { IntegrationStatus } from "@/components/integrations/integration-status";
-import { ViewSwitcher } from "@/components/workspace/view-switcher";
 import { WorkspaceContent } from "@/components/workspace/workspace-content";
 
 export default function AppPage() {
   return (
-    <main className="px-6 py-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+    <main className="flex-1 p-4 md:p-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <section className="flex flex-col gap-2">
+          <p className="text-primary text-xs font-semibold tracking-[0.18em] uppercase">
+            Live workspace
+          </p>
           <div>
-            <p className="text-primary text-sm font-medium">
-              Live Gmail and Calendar
-            </p>
-
-            <h1 className="mt-1 text-3xl font-semibold">
-              Your focus workspace
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+              Inbox and schedule, in one place
             </h1>
-
-            <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
-              View your important conversations and upcoming schedule without
-              switching between Gmail and Google Calendar.
+            <p className="text-muted-foreground mt-1 max-w-2xl text-sm md:text-base">
+              Work through Gmail conversations and Google Calendar events
+              without leaving your command center.
             </p>
           </div>
+        </section>
 
-          <ViewSwitcher />
-        </div>
-
-        <div className="mt-6">
-          <IntegrationStatus />
-        </div>
-
-        <div className="mt-6">
-          <WorkspaceContent />
-        </div>
+        <IntegrationStatus />
+        <WorkspaceContent />
       </div>
     </main>
   );

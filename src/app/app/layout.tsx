@@ -1,39 +1,59 @@
 import type { ReactNode } from "react";
+
+import { AppSidebar } from "@/components/app-sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import { WorkspaceStoreProvider } from "@/providers/workspace-store-provider";
-import { Button } from "@/components/ui/button";
-import { signOut } from "./actions";
 import { getCachedAuth } from "./cached-auth";
 
 type AppLayoutProps = {
   children: ReactNode;
 };
 
+function asRecord(value: unknown) {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 export default async function AppLayout({ children }: AppLayoutProps) {
-  const data = await getCachedAuth();
+  const { claims } = await getCachedAuth();
+  const claimValues = asRecord(claims);
+  const metadata = asRecord(claimValues.user_metadata);
 
   const email =
-    typeof data.claims.email === "string"
-      ? data.claims.email
+    typeof claimValues.email === "string"
+      ? claimValues.email
       : "Signed-in user";
+  const name =
+    typeof metadata.full_name === "string"
+      ? metadata.full_name
+      : typeof metadata.name === "string"
+        ? metadata.name
+        : (email.split("@")[0] ?? "On Emit user");
+  const avatar =
+    typeof metadata.avatar_url === "string"
+      ? metadata.avatar_url
+      : typeof metadata.picture === "string"
+        ? metadata.picture
+        : undefined;
 
   return (
     <WorkspaceStoreProvider>
-      <div className="bg-background text-foreground min-h-screen">
-        <header className="border-border flex h-16 items-center justify-between border-b px-6">
-          <div>
-            <p className="font-semibold">On Emit</p>
-            <p className="text-muted-foreground text-xs">{email}</p>
-          </div>
+      <SidebarProvider>
+        <AppSidebar
+          user={{
+            name,
+            email,
+            ...(avatar ? { avatar } : {}),
+          }}
+        />
 
-          <form action={signOut}>
-            <Button type="submit" variant="outline">
-              Sign out
-            </Button>
-          </form>
-        </header>
-
-        {children}
-      </div>
+        <SidebarInset className="min-w-0">
+          <WorkspaceHeader />
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
     </WorkspaceStoreProvider>
   );
 }
