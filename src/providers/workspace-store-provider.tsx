@@ -26,9 +26,7 @@ export function WorkspaceStoreProvider({
 }: WorkspaceStoreProviderProps) {
   const storeRef = useRef<WorkspaceStoreContextValue | null>(null);
 
-  if (!storeRef.current) {
-    storeRef.current = createWorkspaceStore(initialState);
-  }
+  storeRef.current ??= createWorkspaceStore(initialState);
 
   return (
     <WorkspaceStoreContext.Provider value={storeRef.current}>

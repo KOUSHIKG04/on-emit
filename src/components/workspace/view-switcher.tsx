@@ -7,8 +7,7 @@ import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 export function ViewSwitcher() {
   const activeView = useWorkspaceStore((state) => state.activeView);
 
-  const setActiveView = 
-        useWorkspaceStore((state) => state.setActiveView);
+  const setActiveView = useWorkspaceStore((state) => state.setActiveView);
 
   return (
     <div className="flex items-center gap-2">

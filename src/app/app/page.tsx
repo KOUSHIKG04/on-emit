@@ -5,16 +5,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
 import { ViewSwitcher } from "@/components/workspace/view-switcher";
+import { IntegrationStatus } from "@/components/integrations/integration-status";
+import { getCachedAuth } from "@/app/app/cached-auth";
 
 export default async function AppPage() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  const data = await getCachedAuth();
 
-  const userId = data?.claims?.sub;
+  const userId = data.claims.sub;
   const email =
-    typeof data?.claims?.email === "string" ? data.claims.email : null;
+    typeof data.claims.email === "string" ? data.claims.email : null;
 
   return (
     <main className="p-8">
@@ -50,6 +50,10 @@ export default async function AppPage() {
             </dl>
           </CardContent>
         </Card>
+
+        <div className="mt-6">
+          <IntegrationStatus />
+        </div>
       </div>
     </main>
   );

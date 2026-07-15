@@ -1,15 +1,19 @@
-import { createCorsair } from "corsair";
+import "server-only";
+
 import { gmail } from "@corsair-dev/gmail";
 import { googlecalendar } from "@corsair-dev/googlecalendar";
-import { connections } from "./db";
+import { createCorsair } from "corsair";
+
+import { env } from "@/env";
+import { connections } from "@/server/db";
 
 export const corsair = createCorsair({
   plugins: [gmail(), googlecalendar()],
   database: connections,
-  kek: process.env.CORSAIR_KEK!,
-  multiTenancy: true
-//   hub: {
-//     projectApiKey: process.env.CORSAIR_API_KEY!,
-//     signingSecret: process.env.CORSAIR_SIGNING_SECRET!,
-//   },
+  kek: env.CORSAIR_KEK,
+  multiTenancy: true,
 });
+
+export function getTenantCorsair(tenantId: string) {
+  return corsair.withTenant(tenantId);
+}
