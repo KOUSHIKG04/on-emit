@@ -2,6 +2,11 @@ import { TRPCError } from "@trpc/server";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsair, getTenantCorsair } from "@/server/corsair";
+import { z } from "zod";
+import {
+  createSafeParsedMessage,
+  parseGmailRaw,
+} from "@/server/email/parse-email";
 
 type GmailHeader = {
   name?: string;
@@ -28,7 +33,7 @@ function parseSender(fromHeader: string | null) {
   }
 
   // Example: "Koushik Datta <koushik@example.com>"
-  const match = fromHeader.match(/^(.*)<([^>]+)>$/);
+  const match = /^(.*)<([^>]+)>$/.exec(fromHeader);
 
   if (!match) {
     return {
@@ -51,11 +56,23 @@ function parseSender(fromHeader: string | null) {
 function toISOString(
   value: string | number | Date | null | undefined,
 ): string | null {
-  if (!value) {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
-  const date = value instanceof Date ? value : new Date(value);
+  let date: Date;
+
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === "string" && /^\d+$/.test(value)) {
+    /*
+     * Gmail internalDate is commonly a millisecond timestamp
+     * represented as a string.
+     */
+    date = new Date(Number(value));
+  } else {
+    date = new Date(value);
+  }
 
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -109,6 +126,8 @@ export const gmailRouter = createTRPCRouter({
        * Fetch each thread so that we can read metadata such as:
        * Subject, From and Date.
        */
+
+      // TODO: Switch back to metadata after Corsair supports repeated metadataHeaders.
       const detailedThreads = await Promise.all(
         threadIds.map((threadId) =>
           tenantCorsair.gmail.api.threads.get({
@@ -183,4 +202,85 @@ export const gmailRouter = createTRPCRouter({
       });
     }
   }),
+
+  thread: protectedProcedure
+    .input(
+      z.object({
+        threadId: z.string().min(1),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      try {
+        const connectionStatus = await corsair.manage.connectionStatus.get({
+          tenantId: ctx.userId,
+        });
+
+        if (connectionStatus.gmail !== "connected") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Connect Gmail before opening this conversation.",
+          });
+        }
+
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+
+        /*
+         * Minimal gives us the Gmail message IDs without
+         * downloading every body twice.
+         */
+        const thread = await tenantCorsair.gmail.api.threads.get({
+          userId: "me",
+          id: input.threadId,
+          format: "minimal",
+        });
+
+        const messageIds = (thread.messages ?? [])
+          .map((message) => message.id)
+          .filter((id): id is string => Boolean(id));
+
+        const messages = await Promise.all(
+          messageIds.map(async (messageId) => {
+            /*
+             * Raw returns the original complete RFC/MIME email.
+             */
+            const rawMessage = await tenantCorsair.gmail.api.messages.get({
+              userId: "me",
+              id: messageId,
+              format: "raw",
+            });
+
+            if (!rawMessage.raw) {
+              throw new Error(
+                `Gmail did not return raw content for message ${messageId}.`,
+              );
+            }
+
+            const parsed = await parseGmailRaw(rawMessage.raw);
+
+            return createSafeParsedMessage(messageId, parsed);
+          }),
+        );
+
+        const firstMessage = messages[0];
+
+        return {
+          id: thread.id ?? input.threadId,
+          subject: firstMessage?.subject ?? "(No subject)",
+          snippet: thread.snippet ?? null,
+          messageCount: messages.length,
+          messages,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        console.error("Failed to load Gmail thread:", error);
+
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "The email conversation could not be loaded.",
+        });
+      }
+    }),
 });

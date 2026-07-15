@@ -15,15 +15,10 @@ import { cn } from "@/lib/utils";
 import { api } from "@/trpc/react";
 
 function formatReceivedAt(receivedAt: string | null) {
-  if (!receivedAt) {
-    return "";
-  }
+  if (!receivedAt) return "";
 
   const date = new Date(receivedAt);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
+  if (Number.isNaN(date.getTime())) return "";
 
   const now = new Date();
 
@@ -47,8 +42,8 @@ function formatReceivedAt(receivedAt: string | null) {
 
 export function InboxPanel() {
   const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
-
   const selectThread = useWorkspaceStore((state) => state.selectThread);
+  const setActiveView = useWorkspaceStore((state) => state.setActiveView);
 
   const {
     data: threads,
@@ -111,7 +106,10 @@ export function InboxPanel() {
                     "hover:bg-muted/60 flex w-full gap-3 rounded-lg px-3 py-4 text-left transition-colors",
                     selected && "bg-muted",
                   )}
-                  onClick={() => selectThread(thread.id)}
+                  onClick={() => {
+                    selectThread(thread.id);
+                    setActiveView("inbox");
+                  }}
                 >
                   <div className="pt-1">
                     {thread.unread ? (

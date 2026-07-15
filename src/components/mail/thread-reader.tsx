@@ -1,0 +1,255 @@
+"use client";
+
+import { AlertCircle, MailOpen, Paperclip, UserRound } from "lucide-react";
+
+import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
+import { EmailMarkdown } from "@/components/mail/email-markdown";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useWorkspaceStore } from "@/providers/workspace-store-provider";
+import { api } from "@/trpc/react";
+
+type DisplayAddress = {
+  name: string | null;
+  email: string;
+};
+
+function formatSentAt(value: string | null) {
+  if (!value) {
+    return "Unknown time";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatAddresses(addresses: DisplayAddress[]) {
+  return addresses
+    .map((address) => {
+      if (address.name) {
+        return `${address.name} <${address.email}>`;
+      }
+
+      return address.email;
+    })
+    .join(", ");
+}
+
+export function ThreadReader() {
+  const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+
+  const {
+    data: thread,
+    error,
+    isLoading,
+  } = api.gmail.thread.useQuery(
+    {
+      threadId: selectedThreadId ?? "",
+    },
+    {
+      enabled: Boolean(selectedThreadId),
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  if (!selectedThreadId) {
+    return (
+      <Card className="min-h-[550px]">
+        <CardContent className="flex min-h-[500px] flex-col items-center justify-center text-center">
+          <div className="bg-muted flex size-14 items-center justify-center rounded-full">
+            <MailOpen className="text-muted-foreground size-6" />
+          </div>
+
+          <p className="mt-4 font-medium">Select a conversation</p>
+
+          <p className="text-muted-foreground mt-1 max-w-sm text-sm">
+            Choose an email from the inbox to read the complete conversation.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="min-h-[550px] min-w-0">
+      {isLoading ? (
+        <CardContent>
+          <ThreadSkeleton />
+        </CardContent>
+      ) : null}
+
+      {error ? (
+        <CardContent className="flex min-h-[500px] flex-col items-center justify-center text-center">
+          <AlertCircle className="text-destructive size-8" />
+
+          <p className="mt-4 font-medium">Conversation could not be loaded</p>
+
+          <p className="text-muted-foreground mt-1 text-sm">{error.message}</p>
+        </CardContent>
+      ) : null}
+
+      {thread ? (
+        <>
+          <CardHeader className="border-b">
+            <CardTitle className="text-xl">{thread.subject}</CardTitle>
+
+            <CardDescription>
+              {thread.messageCount} message
+              {thread.messageCount === 1 ? "" : "s"} in this conversation
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="max-w-full min-w-0 space-y-5 overflow-x-hidden">
+            {thread.messages.map((message) => {
+              const regularAttachments = message.attachments.filter(
+                (attachment) => !attachment.inline,
+              );
+
+              return (
+                <article
+                  key={message.id}
+                  className="border-border max-w-full min-w-0 overflow-hidden rounded-xl border p-4"
+                >
+                  <header className="flex items-start gap-3">
+                    <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
+                      <UserRound className="text-muted-foreground size-5" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">
+                            {message.from.name ?? message.from.email}
+                          </p>
+
+                          <p className="text-muted-foreground truncate text-xs">
+                            {message.from.email}
+                          </p>
+                        </div>
+
+                        <time className="text-muted-foreground shrink-0 text-xs">
+                          {formatSentAt(message.sentAt)}
+                        </time>
+                      </div>
+
+                      {message.to.length > 0 ? (
+                        <p className="text-muted-foreground mt-2 text-xs break-words">
+                          To: {formatAddresses(message.to)}
+                        </p>
+                      ) : null}
+
+                      {message.cc.length > 0 ? (
+                        <p className="text-muted-foreground mt-1 text-xs break-words">
+                          Cc: {formatAddresses(message.cc)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </header>
+
+                  <div className="mt-5 max-w-full min-w-0">
+                    {message.htmlDocument ? (
+                      <EmailHtmlFrame
+                        htmlDocument={message.htmlDocument}
+                        title={message.subject}
+                      />
+                    ) : message.text ? (
+                      <EmailMarkdown body={message.text} />
+                    ) : (
+                      <p className="text-muted-foreground text-sm">
+                        This email did not contain a readable body.
+                      </p>
+                    )}
+                  </div>
+
+                  {regularAttachments.length > 0 ? (
+                    <div className="border-border mt-5 border-t pt-4">
+                      <p className="mb-3 flex items-center gap-2 text-sm font-medium">
+                        <Paperclip className="size-4" />
+                        Attachments
+                      </p>
+
+                      <div className="flex flex-wrap gap-2">
+                        {regularAttachments.map((attachment) => (
+                          <a
+                            key={attachment.index}
+                            href={`/api/mail/attachments/${encodeURIComponent(
+                              message.id,
+                            )}/${attachment.index}`}
+                            className="border-border hover:bg-muted max-w-full rounded-lg border px-3 py-2 text-xs transition-colors"
+                          >
+                            <span className="block max-w-56 truncate font-medium">
+                              {attachment.filename}
+                            </span>
+
+                            <span className="text-muted-foreground">
+                              {formatFileSize(attachment.size)}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </CardContent>
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
+function ThreadSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-2/3" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+
+      {Array.from({ length: 2 }).map((_, index) => (
+        <div key={index} className="space-y-4 rounded-xl border p-4">
+          <div className="flex gap-3">
+            <Skeleton className="size-10 rounded-full" />
+
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+          </div>
+
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+      ))}
+    </div>
+  );
+}
