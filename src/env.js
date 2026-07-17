@@ -7,6 +7,7 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
+    APP_URL: z.url().default("http://localhost:3000"),
     DATABASE_URL: z.url(),
     CORSAIR_KEK: z.string().min(1),
     NODE_ENV: z
@@ -29,6 +30,7 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
+    APP_URL: process.env.APP_URL,
     DATABASE_URL: process.env.DATABASE_URL,
     CORSAIR_KEK: process.env.CORSAIR_KEK,
     NODE_ENV: process.env.NODE_ENV,
