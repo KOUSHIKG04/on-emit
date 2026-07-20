@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import { WorkspaceStoreProvider } from "@/providers/workspace-store-provider";
+import { RealtimeSync } from "@/components/realtime/realtime-sync";
 import { getCachedAuth } from "./cached-auth";
 
 type AppLayoutProps = {
@@ -40,6 +41,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <WorkspaceStoreProvider>
+      <RealtimeSync />
       <SidebarProvider>
         <AppSidebar
           user={{

@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   Mail,
   RefreshCw,
+  Copy,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,12 +33,14 @@ type Service = {
 };
 
 export function IntegrationStatus() {
+  const [copied, setCopied] = useState(false);
   const [redirectingPlugin, setRedirectingPlugin] =
     useState<ConnectablePlugin | null>(null);
 
   const statusQuery = api.integrations.status.useQuery(undefined, {
     refetchOnWindowFocus: true,
   });
+  const webhookQuery = api.integrations.webhookConfig.useQuery();
 
   const connectMutation = api.integrations.connect.useMutation({
     onSuccess(data, variables) {
@@ -144,6 +147,34 @@ export function IntegrationStatus() {
             onConnect={() => connect(service.plugin)}
           />
         ))}
+
+        {webhookQuery.data ? (
+          <div className="bg-muted/40 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Realtime webhook endpoint</p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Add this protected URL to the Corsair Gmail and Calendar webhook
+                setup.
+              </p>
+              <code className="text-muted-foreground mt-2 block max-w-full truncate text-xs">
+                {webhookQuery.data.url}
+              </code>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              onClick={async () => {
+                await navigator.clipboard.writeText(webhookQuery.data.url);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2_000);
+              }}
+            >
+              <Copy />
+              {copied ? "Copied" : "Copy URL"}
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
