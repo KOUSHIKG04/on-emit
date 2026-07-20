@@ -28,7 +28,6 @@ type InboxPanelProps = {
 };
 
 type MailboxMode = "inbox" | "priority" | "drafts";
-type LabelFilter = "all" | "unread" | "read";
 
 const mailboxTabs = [
   { value: "inbox" as const, label: "Inbox", icon: Mail },
@@ -38,7 +37,6 @@ const mailboxTabs = [
 
 export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const [mode, setMode] = useState<MailboxMode>("inbox");
-  const [labelFilter, setLabelFilter] = useState<LabelFilter>("all");
   const [query, setQuery] = useState("");
   const [maxResults, setMaxResults] = useState(12);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -49,6 +47,10 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const setActiveView = useWorkspaceStore((state) => state.setActiveView);
   const setCommandPaletteOpen = useWorkspaceStore(
     (state) => state.setCommandPaletteOpen,
+  );
+  const labelFilter = useWorkspaceStore((state) => state.inboxLabelFilter);
+  const setLabelFilter = useWorkspaceStore(
+    (state) => state.setInboxLabelFilter,
   );
 
   const inbox = api.gmail.inbox.useQuery(
@@ -211,7 +213,9 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
               className="min-w-0 flex-1 appearance-none bg-transparent text-sm outline-none"
               aria-label="Filter messages"
               onChange={(event) =>
-                setLabelFilter(event.target.value as LabelFilter)
+                setLabelFilter(
+                  event.target.value as "all" | "unread" | "read",
+                )
               }
             >
               <option value="all">All labels</option>

@@ -7,7 +7,7 @@ import { SearchWorkspace } from "@/components/workspace/search-workspace";
 import { SettingsWorkspace } from "@/components/workspace/settings-workspace";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 
-export function WorkspaceContent() {
+export function WorkspaceContent({ userName }: { userName: string }) {
   const activeView = useWorkspaceStore((state) => state.activeView);
   if (activeView === "inbox") {
     return <InboxWorkspace />;
@@ -18,5 +18,5 @@ export function WorkspaceContent() {
   if (activeView === "search") return <SearchWorkspace />;
   if (activeView === "settings") return <SettingsWorkspace />;
 
-  return <FocusWorkspace />;
+  return <FocusWorkspace userName={userName} />;
 }

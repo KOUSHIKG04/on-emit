@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bot, LoaderCircle, Send, ShieldCheck } from "lucide-react";
 
@@ -16,19 +16,29 @@ import { Field, FieldError } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/client";
 import { cn } from "@/lib/utils";
+import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 
 type Values = { message: string };
 
 export function AgentChat({ embedded = false }: { embedded?: boolean }) {
   const [reply, setReply] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const { register, handleSubmit, formState } = useForm<Values>();
+  const { register, handleSubmit, formState, setValue } = useForm<Values>();
+  const agentDraft = useWorkspaceStore((state) => state.agentDraft);
+  const setAgentDraft = useWorkspaceStore((state) => state.setAgentDraft);
   const chat = api.agent.chat.useMutation({
     onSuccess: (data, variables) => {
       setReply(data.reply);
       if (variables.confirmed) setPendingMessage(null);
     },
   });
+
+  useEffect(() => {
+    if (!agentDraft) return;
+
+    setValue("message", agentDraft, { shouldDirty: true });
+    setAgentDraft("");
+  }, [agentDraft, setAgentDraft, setValue]);
 
   async function submit(values: Values, confirmed = false) {
     setPendingMessage(values.message);

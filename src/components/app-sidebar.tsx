@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
@@ -60,6 +61,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   );
   const agentPanelOpen = useWorkspaceStore((state) => state.agentPanelOpen);
   const { setOpen, setOpenMobile } = useSidebar();
+
+  useEffect(() => {
+    setOpen(activeView === "inbox" || activeView === "calendar");
+  }, [activeView, setOpen]);
 
   function openView(view: WorkspaceView) {
     if (view === "agent") {

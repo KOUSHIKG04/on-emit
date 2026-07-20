@@ -9,16 +9,21 @@ export type WorkspaceView =
   | "settings";
 
 export type CalendarView = "month" | "week" | "day";
+export type QuickActionMode = "email" | "event";
+export type InboxLabelFilter = "all" | "unread" | "read";
 
 export type WorkspaceState = {
   activeView: WorkspaceView;
   selectedThreadId: string | null;
   commandPaletteOpen: boolean;
+  quickActionMode: QuickActionMode;
   composerOpen: boolean;
   agentPanelOpen: boolean;
+  agentDraft: string;
   calendarDate: string;
   calendarView: CalendarView;
   primaryCalendarVisible: boolean;
+  inboxLabelFilter: InboxLabelFilter;
   sidebarCollapsed: boolean;
 };
 
@@ -26,11 +31,14 @@ export type WorkspaceActions = {
   setActiveView: (view: WorkspaceView) => void;
   selectThread: (threadId: string | null) => void;
   setCommandPaletteOpen: (open: boolean) => void;
+  setQuickActionMode: (mode: QuickActionMode) => void;
   setComposerOpen: (open: boolean) => void;
   setAgentPanelOpen: (open: boolean) => void;
+  setAgentDraft: (draft: string) => void;
   setCalendarDate: (date: string) => void;
   setCalendarView: (view: CalendarView) => void;
   setPrimaryCalendarVisible: (visible: boolean) => void;
+  setInboxLabelFilter: (filter: InboxLabelFilter) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   closeOverlays: () => void;
 };
@@ -48,11 +56,14 @@ export const defaultWorkspaceState: WorkspaceState = {
   activeView: "focus",
   selectedThreadId: null,
   commandPaletteOpen: false,
+  quickActionMode: "email",
   composerOpen: false,
   agentPanelOpen: false,
+  agentDraft: "",
   calendarDate: getLocalDateKey(),
   calendarView: "month",
   primaryCalendarVisible: true,
+  inboxLabelFilter: "all",
   sidebarCollapsed: false,
 };
 
@@ -74,12 +85,20 @@ export function createWorkspaceStore(
       set({ commandPaletteOpen });
     },
 
+    setQuickActionMode: (quickActionMode) => {
+      set({ quickActionMode });
+    },
+
     setComposerOpen: (composerOpen) => {
       set({ composerOpen });
     },
 
     setAgentPanelOpen: (agentPanelOpen) => {
       set({ agentPanelOpen });
+    },
+
+    setAgentDraft: (agentDraft) => {
+      set({ agentDraft });
     },
 
     setCalendarDate: (calendarDate) => {
@@ -92,6 +111,10 @@ export function createWorkspaceStore(
 
     setPrimaryCalendarVisible: (primaryCalendarVisible) => {
       set({ primaryCalendarVisible });
+    },
+
+    setInboxLabelFilter: (inboxLabelFilter) => {
+      set({ inboxLabelFilter });
     },
 
     setSidebarCollapsed: (sidebarCollapsed) => {
