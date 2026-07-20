@@ -90,6 +90,24 @@ const deleteEventInput = z.object({
   eventId: z.string().min(1).max(1_000),
 });
 
+const calendarRangeInput = z
+  .object({
+    timeMin: z.iso.datetime(),
+    timeMax: z.iso.datetime(),
+  })
+  .superRefine((value, context) => {
+    const start = new Date(value.timeMin).getTime();
+    const end = new Date(value.timeMax).getTime();
+
+    if (end <= start || end - start > 93 * 24 * 60 * 60 * 1_000) {
+      context.addIssue({
+        code: "custom",
+        path: ["timeMax"],
+        message: "Calendar range must be after its start and within 93 days.",
+      });
+    }
+  });
+
 async function ensureCalendarConnected(
   tenantId: string,
   message = "Connect Google Calendar before performing this action.",
@@ -127,6 +145,71 @@ function getMeetingUrl(event: {
 }
 
 export const calendarRouter = createTRPCRouter({
+  range: protectedProcedure
+    .input(calendarRangeInput)
+    .query(async ({ ctx, input }) => {
+      try {
+        await ensureCalendarConnected(
+          ctx.userId,
+          "Connect Google Calendar before loading events.",
+        );
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const response = await tenantCorsair.googlecalendar.api.events.getMany({
+          calendarId: "primary",
+          timeMin: input.timeMin,
+          timeMax: input.timeMax,
+          singleEvents: true,
+          orderBy: "startTime",
+          maxResults: 250,
+          showDeleted: false,
+        });
+
+        return (response.items ?? [])
+          .map((event) => {
+            const start = event.start?.dateTime ?? event.start?.date ?? null;
+            const end = event.end?.dateTime ?? event.end?.date ?? null;
+
+            if (!event.id || !start) return null;
+
+            const attendees = (event.attendees ?? [])
+              .filter(
+                (
+                  attendee,
+                ): attendee is typeof attendee & { email: string } =>
+                  Boolean(attendee.email),
+              )
+              .map((attendee) => ({
+                email: attendee.email,
+                displayName: attendee.displayName ?? null,
+                responseStatus: attendee.responseStatus ?? null,
+              }));
+
+            return {
+              id: event.id,
+              title: event.summary ?? "(Untitled event)",
+              description: event.description ?? null,
+              start,
+              end,
+              allDay: Boolean(event.start?.date && !event.start?.dateTime),
+              location: event.location ?? null,
+              meetingUrl: getMeetingUrl(event),
+              htmlLink: event.htmlLink ?? null,
+              status: event.status ?? null,
+              attendees,
+            };
+          })
+          .filter((event): event is NonNullable<typeof event> => event !== null);
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+
+        console.error("Failed to load Google Calendar range:", error);
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "Google Calendar could not load this date range.",
+        });
+      }
+    }),
+
   updateEvent: protectedProcedure
     .input(updateEventInput)
     .mutation(async ({ ctx, input }) => {

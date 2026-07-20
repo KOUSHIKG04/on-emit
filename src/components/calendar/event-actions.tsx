@@ -68,7 +68,13 @@ function defaultValues(event: CalendarEvent): EventFormValues {
   };
 }
 
-export function EventActions({ event }: { event: CalendarEvent }) {
+export function EventActions({
+  event,
+  compact = false,
+}: {
+  event: CalendarEvent;
+  compact?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [updated, setUpdated] = useState(false);
@@ -88,13 +94,19 @@ export function EventActions({ event }: { event: CalendarEvent }) {
   const updateMutation = api.calendar.updateEvent.useMutation({
     async onSuccess() {
       setUpdated(true);
-      await utils.calendar.upcoming.invalidate();
+      await Promise.all([
+        utils.calendar.upcoming.invalidate(),
+        utils.calendar.range.invalidate(),
+      ]);
     },
   });
 
   const deleteMutation = api.calendar.deleteEvent.useMutation({
     async onSuccess() {
-      await utils.calendar.upcoming.invalidate();
+      await Promise.all([
+        utils.calendar.upcoming.invalidate(),
+        utils.calendar.range.invalidate(),
+      ]);
       setOpen(false);
     },
   });
@@ -171,7 +183,7 @@ export function EventActions({ event }: { event: CalendarEvent }) {
     >
       <Button
         type="button"
-        size="icon-sm"
+        size={compact ? "icon-xs" : "icon-sm"}
         variant="ghost"
         aria-label={`Edit ${event.title}`}
         onClick={() => setOpen(true)}

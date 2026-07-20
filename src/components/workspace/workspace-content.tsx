@@ -1,6 +1,6 @@
 "use client";
 
-import { UpcomingEvents } from "@/components/calendar/upcoming-events";
+import { CalendarWorkspace } from "@/components/calendar/calendar-workspace";
 import { FocusWorkspace } from "@/components/workspace/focus-workspace";
 import { InboxWorkspace } from "@/components/workspace/inbox-workspace";
 import { SearchWorkspace } from "@/components/workspace/search-workspace";
@@ -13,11 +13,7 @@ export function WorkspaceContent() {
     return <InboxWorkspace />;
   }
   if (activeView === "calendar") {
-    return (
-      <div className="min-h-full [&>[data-slot=card]]:min-h-full [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:ring-0">
-        <UpcomingEvents />
-      </div>
-    );
+    return <CalendarWorkspace />;
   }
   if (activeView === "search") return <SearchWorkspace />;
   if (activeView === "settings") return <SettingsWorkspace />;

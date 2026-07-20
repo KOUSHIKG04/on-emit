@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import { CalendarSidebar } from "@/components/calendar/calendar-sidebar";
 import { InboxPanel } from "@/components/mail/inbox-panel";
 import { NavUser } from "@/components/nav-user";
 import {
@@ -69,7 +70,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     }
 
     setActiveView(view);
-    setOpen(view === "inbox");
+    setOpen(view === "inbox" || view === "calendar");
     setOpenMobile(false);
   }
 
@@ -141,6 +142,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         className="hidden min-w-0 flex-1 overflow-hidden md:flex"
       >
         {activeView === "inbox" ? <InboxPanel variant="sidebar" /> : null}
+        {activeView === "calendar" ? (
+          <CalendarSidebar accountEmail={user.email} />
+        ) : null}
       </Sidebar>
     </Sidebar>
   );

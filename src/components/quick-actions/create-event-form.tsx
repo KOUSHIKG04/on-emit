@@ -79,7 +79,10 @@ export function CreateEventForm() {
         location: "",
         description: "",
       });
-      await utils.calendar.upcoming.invalidate();
+      await Promise.all([
+        utils.calendar.upcoming.invalidate(),
+        utils.calendar.range.invalidate(),
+      ]);
     },
   });
 
