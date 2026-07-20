@@ -18,6 +18,13 @@ import {
 import { ClientDateTime } from "@/components/shared/client-date-time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
@@ -206,24 +213,46 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
             </kbd>
           </label>
 
-          <label className="relative flex h-9 items-center gap-2 rounded-lg border px-3">
-            <Tag className="text-muted-foreground size-3.5" />
-            <select
-              value={labelFilter}
-              className="min-w-0 flex-1 appearance-none bg-transparent text-sm outline-none"
-              aria-label="Filter messages"
-              onChange={(event) =>
-                setLabelFilter(
-                  event.target.value as "all" | "unread" | "read",
-                )
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full justify-start px-3 font-normal"
+                  aria-label="Filter messages"
+                />
               }
             >
-              <option value="all">All labels</option>
-              <option value="unread">Unread</option>
-              <option value="read">Read</option>
-            </select>
-            <ChevronDown className="text-muted-foreground pointer-events-none size-4" />
-          </label>
+              <Tag className="text-muted-foreground size-3.5" />
+              <span className="min-w-0 flex-1 truncate text-left">
+                {labelFilter === "all"
+                  ? "All labels"
+                  : labelFilter === "unread"
+                    ? "Unread"
+                    : "Read"}
+              </span>
+              <ChevronDown className="text-muted-foreground size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuRadioGroup
+                value={labelFilter}
+                onValueChange={(value) =>
+                  setLabelFilter(value as "all" | "unread" | "read")
+                }
+              >
+                <DropdownMenuRadioItem value="all">
+                  All labels
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="unread">
+                  Unread
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="read">
+                  Read
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
 
