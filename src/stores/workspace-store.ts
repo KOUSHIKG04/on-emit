@@ -24,6 +24,7 @@ export type WorkspaceState = {
   calendarView: CalendarView;
   primaryCalendarVisible: boolean;
   inboxLabelFilter: InboxLabelFilter;
+  sidebarWidth: number;
   sidebarCollapsed: boolean;
 };
 
@@ -39,6 +40,7 @@ export type WorkspaceActions = {
   setCalendarView: (view: CalendarView) => void;
   setPrimaryCalendarVisible: (visible: boolean) => void;
   setInboxLabelFilter: (filter: InboxLabelFilter) => void;
+  setSidebarWidth: (width: number) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   closeOverlays: () => void;
 };
@@ -64,6 +66,7 @@ export const defaultWorkspaceState: WorkspaceState = {
   calendarView: "month",
   primaryCalendarVisible: true,
   inboxLabelFilter: "all",
+  sidebarWidth: 448,
   sidebarCollapsed: false,
 };
 
@@ -115,6 +118,10 @@ export function createWorkspaceStore(
 
     setInboxLabelFilter: (inboxLabelFilter) => {
       set({ inboxLabelFilter });
+    },
+
+    setSidebarWidth: (sidebarWidth) => {
+      set({ sidebarWidth });
     },
 
     setSidebarCollapsed: (sidebarCollapsed) => {

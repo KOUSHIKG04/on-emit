@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
@@ -60,7 +60,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     (state) => state.setAgentPanelOpen,
   );
   const agentPanelOpen = useWorkspaceStore((state) => state.agentPanelOpen);
-  const { setOpen, setOpenMobile } = useSidebar();
+  const { open, setOpen, setOpenMobile } = useSidebar();
 
   useEffect(() => {
     setOpen(activeView === "inbox" || activeView === "calendar");
@@ -89,7 +89,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         collapsible="none"
         className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
       >
-        <SidebarHeader>
+        <SidebarHeader className="h-16 shrink-0 justify-center border-b">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -151,6 +151,81 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           <CalendarSidebar accountEmail={user.email} />
         ) : null}
       </Sidebar>
+
+      {open && (activeView === "inbox" || activeView === "calendar") ? (
+        <SidebarResizeHandle />
+      ) : null}
     </Sidebar>
+  );
+}
+
+const MIN_SIDEBAR_WIDTH = 384;
+const DEFAULT_SIDEBAR_WIDTH = 448;
+const MAX_SIDEBAR_WIDTH = 640;
+
+function SidebarResizeHandle() {
+  const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
+  const setSidebarWidth = useWorkspaceStore((state) => state.setSidebarWidth);
+  const [resizing, setResizing] = useState(false);
+  const dragStart = useRef({ pointerX: 0, width: sidebarWidth });
+
+  function clampWidth(width: number) {
+    const viewportMaximum =
+      typeof window === "undefined"
+        ? MAX_SIDEBAR_WIDTH
+        : Math.floor(window.innerWidth * 0.62);
+
+    return Math.min(
+      Math.max(MIN_SIDEBAR_WIDTH, viewportMaximum),
+      MAX_SIDEBAR_WIDTH,
+      Math.max(MIN_SIDEBAR_WIDTH, width),
+    );
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-label="Resize sidebar"
+      aria-orientation="vertical"
+      aria-valuemin={MIN_SIDEBAR_WIDTH}
+      aria-valuemax={MAX_SIDEBAR_WIDTH}
+      aria-valuenow={sidebarWidth}
+      tabIndex={0}
+      className={cn(
+        "group/resize absolute inset-y-0 right-0 z-50 hidden w-2 cursor-col-resize touch-none md:block",
+        resizing && "bg-primary/10",
+      )}
+      onDoubleClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+        event.preventDefault();
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        setSidebarWidth(clampWidth(sidebarWidth + direction * 16));
+      }}
+      onPointerDown={(event) => {
+        dragStart.current = {
+          pointerX: event.clientX,
+          width: sidebarWidth,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setResizing(true);
+      }}
+      onPointerMove={(event) => {
+        if (!resizing) return;
+
+        const delta = event.clientX - dragStart.current.pointerX;
+        setSidebarWidth(clampWidth(dragStart.current.width + delta));
+      }}
+      onPointerUp={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        setResizing(false);
+      }}
+      onPointerCancel={() => setResizing(false)}
+    >
+      <span className="bg-border group-hover/resize:bg-primary group-focus/resize:bg-primary absolute inset-y-0 right-0 w-px transition-colors" />
+    </div>
   );
 }

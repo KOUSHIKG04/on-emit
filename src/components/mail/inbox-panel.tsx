@@ -140,7 +140,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
       )}
     >
       <CardHeader className={cn("gap-0", sidebar ? "p-0" : "border-b p-0")}>
-        <div className="flex min-w-0 items-center gap-1 border-b px-3 py-2">
+        <div className="flex h-16 min-w-0 shrink-0 items-center gap-1 border-b px-3">
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
             {mailboxTabs.map((tab) => {
               const Icon = tab.icon;

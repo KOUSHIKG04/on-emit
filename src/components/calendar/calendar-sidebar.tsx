@@ -37,7 +37,7 @@ export function CalendarSidebar({ accountEmail }: { accountEmail: string }) {
 
   return (
     <div className="bg-sidebar text-sidebar-foreground flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
-      <div className="border-b p-3">
+      <div className="flex h-16 shrink-0 items-center border-b px-3">
         <Button
           type="button"
           className="w-full"
