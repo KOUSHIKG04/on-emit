@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { AlertCircle, Clock3, Mail, MailOpen, Search, X } from "lucide-react";
+import { AlertCircle, Clock3, Mail, MailOpen, Search, X } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import {

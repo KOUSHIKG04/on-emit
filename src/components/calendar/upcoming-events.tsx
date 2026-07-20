@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarDays, MapPin, Video } from "lucide-react";
+import { AlertCircle, CalendarDays, MapPin, Video } from "@/components/icons";
 
 import { EventActions } from "@/components/calendar/event-actions";
 import {

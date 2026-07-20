@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   UserRound,
   X,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
 import { EmailMarkdown } from "@/components/mail/email-markdown";

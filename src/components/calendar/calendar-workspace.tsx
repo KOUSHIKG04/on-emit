@@ -8,7 +8,7 @@ import {
   MapPin,
   Plus,
   Video,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { EventActions } from "@/components/calendar/event-actions";
 import { Button } from "@/components/ui/button";

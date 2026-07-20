@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { TablerIcon } from "@/components/icons";
 import {
   ArrowRight,
   CalendarDays,
@@ -17,7 +17,7 @@ import {
   Sparkles,
   SquarePen,
   SunMedium,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { EventActions } from "@/components/calendar/event-actions";
 import { Button } from "@/components/ui/button";
@@ -458,7 +458,7 @@ type MetricCardProps = {
   value: number | undefined;
   loading: boolean;
   error: boolean;
-  icon: LucideIcon;
+  icon: TablerIcon;
   accent?: boolean;
 };
 
@@ -506,7 +506,7 @@ function SectionLabel({
   icon: Icon,
   children,
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   children: ReactNode;
 }) {
   return (
@@ -541,7 +541,7 @@ function ActionButton({
   label,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   onClick: () => void;
 }) {

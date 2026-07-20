@@ -7,7 +7,7 @@ import {
   CheckCircle2,
   ExternalLink,
   LoaderCircle,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { parseEmailList } from "@/components/quick-actions/form-utils";
 import { Button } from "@/components/ui/button";

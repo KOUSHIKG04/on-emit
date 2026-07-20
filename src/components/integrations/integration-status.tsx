@@ -9,7 +9,7 @@ import {
   Mail,
   RefreshCw,
   Copy,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import {

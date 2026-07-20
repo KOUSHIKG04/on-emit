@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot } from "lucide-react";
+import { Bot } from "@/components/icons";
 
 import { AgentChat } from "@/components/agent/agent-chat";
 import {

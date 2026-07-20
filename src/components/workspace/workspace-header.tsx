@@ -7,7 +7,7 @@ import {
   Search,
   Settings2,
   Sparkles,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { IntegrationActions } from "@/components/integrations/integration-actions";
 import { QuickActionDialog } from "@/components/quick-actions/quick-action-dialog";

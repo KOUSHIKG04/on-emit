@@ -13,7 +13,7 @@ import {
   Sparkles,
   SquarePen,
   Tag,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { ClientDateTime } from "@/components/shared/client-date-time";
 import { Button } from "@/components/ui/button";

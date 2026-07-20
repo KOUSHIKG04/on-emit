@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { TablerIcon } from "@/components/icons";
 import {
   Bot,
   CalendarDays,
@@ -10,7 +10,7 @@ import {
   Settings2,
   Sparkles,
   Zap,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { CalendarSidebar } from "@/components/calendar/calendar-sidebar";
 import { InboxPanel } from "@/components/mail/inbox-panel";
@@ -42,7 +42,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 type WorkspaceItem = {
   title: string;
   view: WorkspaceView;
-  icon: LucideIcon;
+  icon: TablerIcon;
 };
 
 const workspaceItems: WorkspaceItem[] = [

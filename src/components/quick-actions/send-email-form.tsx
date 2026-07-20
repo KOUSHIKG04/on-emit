@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, LoaderCircle, Send } from "lucide-react";
+import { CheckCircle2, LoaderCircle, Send } from "@/components/icons";
 
 import { parseEmailList } from "@/components/quick-actions/form-utils";
 import { Button } from "@/components/ui/button";

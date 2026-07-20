@@ -12,7 +12,7 @@ import {
   Reply,
   Send,
   X,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";

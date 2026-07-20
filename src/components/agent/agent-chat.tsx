@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Bot, LoaderCircle, Send, ShieldCheck } from "lucide-react";
+import { Bot, LoaderCircle, Send, ShieldCheck } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import {

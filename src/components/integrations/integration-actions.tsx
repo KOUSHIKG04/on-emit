@@ -1,7 +1,7 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, LoaderCircle, Mail } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { CalendarDays, CheckCircle2, LoaderCircle, Mail } from "@/components/icons";
+import type { TablerIcon } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import { api } from "@/trpc/client";
@@ -53,7 +53,7 @@ type ConnectionButtonProps = {
   label: string;
   connected: boolean;
   loading: boolean;
-  icon: LucideIcon;
+  icon: TablerIcon;
   onClick: () => void;
 };
 

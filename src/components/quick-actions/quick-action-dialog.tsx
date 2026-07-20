@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { CalendarPlus, Command, MailPlus, Sparkles } from "lucide-react";
+import { CalendarPlus, Command, MailPlus, Sparkles } from "@/components/icons";
 
 import { CreateEventForm } from "@/components/quick-actions/create-event-form";
 import { SendEmailForm } from "@/components/quick-actions/send-email-form";
