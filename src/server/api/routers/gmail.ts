@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsair, getTenantCorsair } from "@/server/corsair";
 import { createRawEmail } from "@/server/email/create-raw-email";
+import { getEmailPriorities } from "@/server/email/classify-priority";
 import {
   createSafeParsedMessage,
   parseGmailRaw,
@@ -163,6 +164,7 @@ async function listThreadSummaries(
 
     return {
       id: thread.id ?? "",
+      latestMessageId: latestMessage?.id ?? null,
       subject: getHeader(headers, "Subject") ?? "(No subject)",
       senderName: sender.name,
       senderEmail: sender.email,
@@ -430,7 +432,21 @@ export const gmailRouter = createTRPCRouter({
        * threads.list only returns lightweight thread information.
        * We request a small number to avoid unnecessary API calls.
        */
-      return await listThreadSummaries(tenantCorsair, "in:inbox", 12);
+      const inboxThreads = await listThreadSummaries(
+        tenantCorsair,
+        "in:inbox",
+        12,
+      );
+      const priorities = await getEmailPriorities(ctx.userId, inboxThreads);
+
+      return inboxThreads.map((thread) => ({
+        ...thread,
+        priority: priorities.get(thread.id)?.priority ?? "normal",
+        priorityReason:
+          priorities.get(thread.id)?.reason ??
+          "Priority has not been classified.",
+        prioritySource: priorities.get(thread.id)?.source ?? "rules",
+      }));
     } catch (error) {
       /*
        * Preserve intentional tRPC errors such as Gmail not connected.

@@ -10,6 +10,8 @@ export const env = createEnv({
     APP_URL: z.url().default("http://localhost:3000"),
     DATABASE_URL: z.url(),
     CORSAIR_KEK: z.string().min(1),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_PRIORITY_MODEL: z.string().min(1).default("gpt-5.6-luna"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -33,6 +35,8 @@ export const env = createEnv({
     APP_URL: process.env.APP_URL,
     DATABASE_URL: process.env.DATABASE_URL,
     CORSAIR_KEK: process.env.CORSAIR_KEK,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_PRIORITY_MODEL: process.env.OPENAI_PRIORITY_MODEL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:

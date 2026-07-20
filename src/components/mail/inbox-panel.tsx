@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertCircle, Mail, MailOpen } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, Mail, MailOpen, Sparkles } from "lucide-react";
 
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import {
@@ -11,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/trpc/react";
 
@@ -41,6 +43,7 @@ function formatReceivedAt(receivedAt: string | null) {
 }
 
 export function InboxPanel() {
+  const [filter, setFilter] = useState<"all" | "high" | "low">("all");
   const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
   const selectThread = useWorkspaceStore((state) => state.selectThread);
   const setActiveView = useWorkspaceStore((state) => state.setActiveView);
@@ -55,6 +58,10 @@ export function InboxPanel() {
   });
 
   const gmailDisconnected = error?.data?.code === "PRECONDITION_FAILED";
+  const visibleThreads =
+    filter === "all"
+      ? threads
+      : threads?.filter((thread) => thread.priority === filter);
 
   return (
     <Card className="min-h-[550px]">
@@ -67,6 +74,31 @@ export function InboxPanel() {
         <CardDescription>
           Your latest Gmail conversations through Corsair.
         </CardDescription>
+
+        <div
+          className="flex flex-wrap gap-2 pt-2"
+          aria-label="Inbox priority filter"
+        >
+          {(
+            [
+              ["all", "All"],
+              ["high", "Priority"],
+              ["low", "Low priority"],
+            ] as const
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={filter === value ? "default" : "outline"}
+              aria-pressed={filter === value}
+              onClick={() => setFilter(value)}
+            >
+              {value === "high" ? <Sparkles /> : null}
+              {label}
+            </Button>
+          ))}
+        </div>
       </CardHeader>
 
       <CardContent>
@@ -93,9 +125,20 @@ export function InboxPanel() {
           />
         ) : null}
 
-        {threads && threads.length > 0 ? (
+        {!isLoading &&
+        !error &&
+        threads &&
+        threads.length > 0 &&
+        visibleThreads?.length === 0 ? (
+          <EmptyState
+            title="No messages in this priority"
+            description="Try another filter or return to All messages."
+          />
+        ) : null}
+
+        {visibleThreads && visibleThreads.length > 0 ? (
           <div className="divide-border divide-y">
-            {threads.map((thread) => {
+            {visibleThreads.map((thread) => {
               const selected = selectedThreadId === thread.id;
 
               return (
@@ -153,6 +196,30 @@ export function InboxPanel() {
                         {thread.messageCount} messages
                       </p>
                     ) : null}
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          thread.priority === "high" &&
+                            "bg-primary/15 text-primary",
+                          thread.priority === "normal" &&
+                            "bg-muted text-muted-foreground",
+                          thread.priority === "low" &&
+                            "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+                        )}
+                        title={`${thread.priorityReason} (${thread.prioritySource === "openai" ? "AI" : "local rules"})`}
+                      >
+                        {thread.priority === "high"
+                          ? "Priority"
+                          : thread.priority === "low"
+                            ? "Low priority"
+                            : "Normal"}
+                      </span>
+                      <span className="text-muted-foreground truncate text-[11px]">
+                        {thread.priorityReason}
+                      </span>
+                    </div>
                   </div>
                 </button>
               );
