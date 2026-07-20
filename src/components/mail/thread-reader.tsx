@@ -12,6 +12,7 @@ import {
 
 import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
 import { EmailMarkdown } from "@/components/mail/email-markdown";
+import { ThreadActions } from "@/components/mail/thread-actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -135,6 +136,12 @@ export function ThreadReader() {
               {thread.messageCount} message
               {thread.messageCount === 1 ? "" : "s"} in this conversation
             </CardDescription>
+
+            <ThreadActions
+              threadId={thread.id}
+              messageId={thread.messages.at(-1)?.id ?? null}
+              unread={thread.unread}
+            />
           </CardHeader>
 
           <CardContent className="max-w-full min-w-0 space-y-5 overflow-x-hidden">
