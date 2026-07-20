@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Archive,
@@ -77,6 +77,11 @@ export function ThreadActions({
     actionMutation.mutate({ threadId, action });
   }
 
+  const runShortcutAction = useRef(runAction);
+  useEffect(() => {
+    runShortcutAction.current = runAction;
+  });
+
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
       if (event.metaKey || event.ctrlKey || event.altKey) {
@@ -94,19 +99,19 @@ export function ThreadActions({
         setReplyOpen(true);
       } else if (key === "e") {
         event.preventDefault();
-        runAction("archive");
+        runShortcutAction.current("archive");
       } else if (event.shiftKey && key === "i") {
         event.preventDefault();
-        runAction("mark_read");
+        runShortcutAction.current("mark_read");
       } else if (event.shiftKey && key === "u") {
         event.preventDefault();
-        runAction("mark_unread");
+        runShortcutAction.current("mark_unread");
       }
     }
 
     document.addEventListener("keydown", handleShortcut);
     return () => document.removeEventListener("keydown", handleShortcut);
-  });
+  }, [messageId]);
 
   return (
     <div className="mt-4 space-y-3">

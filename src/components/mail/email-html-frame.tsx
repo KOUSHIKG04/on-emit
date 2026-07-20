@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { allowRemoteEmailImageSources } from "@/lib/email-content-security-policy";
+
 type EmailHtmlFrameProps = {
   htmlDocument: string;
   title: string;
@@ -132,7 +134,7 @@ export function EmailHtmlFrame({
   const isCapped = height >= 30_000;
 
   const imageAwareDocument = allowRemoteImages
-    ? themedDocument.replace("img-src data:;", "img-src data: https: http:;")
+    ? allowRemoteEmailImageSources(themedDocument)
     : themedDocument;
 
   const finalThemedDocument = isCapped

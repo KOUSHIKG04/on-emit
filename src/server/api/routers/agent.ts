@@ -12,6 +12,8 @@ const chatInput = z.object({
   confirmed: z.boolean().default(false),
 });
 
+const AGENT_TIMEOUT_MS = 60_000;
+
 export const agentRouter = createTRPCRouter({
   chat: protectedProcedure.input(chatInput).mutation(async ({ ctx, input }) => {
     if (!env.OPENAI_API_KEY) {
@@ -20,6 +22,12 @@ export const agentRouter = createTRPCRouter({
         message: "Add OPENAI_API_KEY to use Corsair agent chat.",
       });
     }
+
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(
+      () => timeoutController.abort(),
+      AGENT_TIMEOUT_MS,
+    );
 
     try {
       const corsairTools = new OpenAIAgentsProvider().build({
@@ -47,16 +55,32 @@ Current date and time: ${new Date().toISOString()}.
 ${input.confirmed ? "The user explicitly confirmed external writes for this request." : "This request is preview-only. Explain the proposed email or calendar action and ask the user to confirm; write tools are unavailable."}`,
       });
 
-      const result = await run(agent, input.message, { maxTurns: 8 });
+      const result = await run(agent, input.message, {
+        maxTurns: 8,
+        signal: timeoutController.signal,
+      });
       return {
         reply: String(result.finalOutput ?? "No response was produced."),
       };
     } catch (error) {
+      if (timeoutController.signal.aborted) {
+        throw new TRPCError({
+          code: "TIMEOUT",
+          message: "The Corsair agent exceeded the 60-second time limit.",
+        });
+      }
+
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
       console.error("Corsair MCP agent failed:", error);
       throw new TRPCError({
         code: "BAD_GATEWAY",
         message: "The Corsair agent could not complete this request.",
       });
+    } finally {
+      clearTimeout(timeout);
     }
   }),
 });

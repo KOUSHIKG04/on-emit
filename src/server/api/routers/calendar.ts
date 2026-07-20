@@ -90,7 +90,10 @@ const deleteEventInput = z.object({
   eventId: z.string().min(1).max(1_000),
 });
 
-async function ensureCalendarConnected(tenantId: string) {
+async function ensureCalendarConnected(
+  tenantId: string,
+  message = "Connect Google Calendar before performing this action.",
+) {
   const connectionStatus = await corsair.manage.connectionStatus.get({
     tenantId,
   });
@@ -98,7 +101,7 @@ async function ensureCalendarConnected(tenantId: string) {
   if (connectionStatus.googlecalendar !== "connected") {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: "Connect Google Calendar before performing this action.",
+      message,
     });
   }
 }
@@ -254,16 +257,10 @@ export const calendarRouter = createTRPCRouter({
 
   upcoming: protectedProcedure.query(async ({ ctx }) => {
     try {
-      const connectionStatus = await corsair.manage.connectionStatus.get({
-        tenantId: ctx.userId,
-      });
-
-      if (connectionStatus.googlecalendar !== "connected") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Connect Google Calendar before loading events.",
-        });
-      }
+      await ensureCalendarConnected(
+        ctx.userId,
+        "Connect Google Calendar before loading events.",
+      );
 
       const tenantCorsair = getTenantCorsair(ctx.userId);
 

@@ -6,6 +6,8 @@ import PostalMime, {
 import sanitizeHtml from "sanitize-html";
 import { randomBytes } from "node:crypto";
 
+import { EMAIL_IMAGE_SOURCE_DIRECTIVE } from "@/lib/email-content-security-policy";
+
 export type SafeEmailAddress = {
   name: string | null;
   email: string;
@@ -274,7 +276,7 @@ function createHtmlDocument(html: string) {
       http-equiv="Content-Security-Policy"
       content="
         default-src 'none';
-        img-src data:;
+        ${EMAIL_IMAGE_SOURCE_DIRECTIVE}
         style-src 'unsafe-inline';
         script-src 'nonce-${scriptNonce}';
         font-src data:;

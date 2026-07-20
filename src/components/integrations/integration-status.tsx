@@ -34,6 +34,7 @@ type Service = {
 
 export function IntegrationStatus() {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [redirectingPlugin, setRedirectingPlugin] =
     useState<ConnectablePlugin | null>(null);
 
@@ -148,6 +149,23 @@ export function IntegrationStatus() {
           />
         ))}
 
+        {webhookQuery.isLoading ? (
+          <div className="text-muted-foreground flex items-center gap-2 rounded-xl border p-4 text-sm">
+            <LoaderCircle className="size-4 animate-spin" />
+            Preparing protected webhook endpoint...
+          </div>
+        ) : null}
+
+        {webhookQuery.error ? (
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
+          >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" />
+            {webhookQuery.error.message}
+          </div>
+        ) : null}
+
         {webhookQuery.data ? (
           <div className="bg-muted/40 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
@@ -165,14 +183,32 @@ export function IntegrationStatus() {
               variant="outline"
               className="shrink-0"
               onClick={async () => {
-                await navigator.clipboard.writeText(webhookQuery.data.url);
-                setCopied(true);
-                window.setTimeout(() => setCopied(false), 2_000);
+                try {
+                  await navigator.clipboard.writeText(webhookQuery.data.url);
+                  setCopyError(null);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 2_000);
+                } catch {
+                  setCopied(false);
+                  setCopyError(
+                    "Could not copy the webhook URL. Select and copy it manually.",
+                  );
+                }
               }}
             >
               <Copy />
               {copied ? "Copied" : "Copy URL"}
             </Button>
+          </div>
+        ) : null}
+
+        {copyError ? (
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
+          >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" />
+            {copyError}
           </div>
         ) : null}
       </CardContent>

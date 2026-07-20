@@ -1,15 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
-import { connections } from "@/server/db";
+import { subscribeToRealtime } from "@/server/realtime/notifier";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type RealtimePayload = {
-  tenantId?: unknown;
-  plugin?: unknown;
-  action?: unknown;
-  receivedAt?: unknown;
-};
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -22,8 +15,20 @@ export async function GET(request: Request) {
 
   const encoder = new TextEncoder();
   let heartbeat: ReturnType<typeof setInterval> | undefined;
-  let unlisten: (() => Promise<void>) | undefined;
+  let unsubscribe: (() => void) | undefined;
   let closed = false;
+  let cleanedUp = false;
+
+  function cleanup() {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    closed = true;
+    request.signal.removeEventListener("abort", cleanup);
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = undefined;
+    unsubscribe?.();
+    unsubscribe = undefined;
+  }
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -38,35 +43,34 @@ export async function GET(request: Request) {
 
       send("connected", { connectedAt: new Date().toISOString() });
 
-      const listener = await connections.listen(
-        "on_emit_realtime",
-        (rawPayload) => {
-          try {
-            const payload = JSON.parse(rawPayload) as RealtimePayload;
-            if (payload.tenantId === tenantId) send("integration", payload);
-          } catch (error) {
-            console.warn("Ignored malformed realtime payload:", error);
-          }
-        },
-      );
-      unlisten = () => listener.unlisten();
-      heartbeat = setInterval(
-        () => send("heartbeat", { now: Date.now() }),
-        25_000,
-      );
+      try {
+        const stopListening = await subscribeToRealtime(tenantId, (payload) =>
+          send("integration", payload),
+        );
+
+        if (closed) {
+          stopListening();
+          return;
+        }
+
+        unsubscribe = stopListening;
+        heartbeat = setInterval(
+          () => send("heartbeat", { now: Date.now() }),
+          25_000,
+        );
+      } catch (error) {
+        if (!closed) {
+          cleanup();
+          controller.error(error);
+        }
+      }
     },
-    async cancel() {
-      closed = true;
-      if (heartbeat) clearInterval(heartbeat);
-      await unlisten?.();
+    cancel() {
+      cleanup();
     },
   });
 
-  request.signal.addEventListener("abort", () => {
-    closed = true;
-    if (heartbeat) clearInterval(heartbeat);
-    void unlisten?.();
-  });
+  request.signal.addEventListener("abort", cleanup, { once: true });
 
   return new Response(stream, {
     headers: {

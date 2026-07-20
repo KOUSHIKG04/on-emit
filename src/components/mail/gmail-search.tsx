@@ -101,7 +101,11 @@ export function GmailSearch() {
       ...recentSearches.filter((item) => item !== query),
     ].slice(0, 5);
     setRecentSearches(next);
-    window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+    try {
+      window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+    } catch {
+      // Search still works when browser storage is unavailable.
+    }
   }
 
   function applyQuery(query: string) {
@@ -111,7 +115,11 @@ export function GmailSearch() {
 
   function clearHistory() {
     setRecentSearches([]);
-    window.localStorage.removeItem(RECENT_SEARCHES_KEY);
+    try {
+      window.localStorage.removeItem(RECENT_SEARCHES_KEY);
+    } catch {
+      // The in-memory history is already cleared.
+    }
   }
 
   const gmailDisconnected = search.error?.data?.code === "PRECONDITION_FAILED";

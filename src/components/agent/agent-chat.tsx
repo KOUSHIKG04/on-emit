@@ -23,7 +23,10 @@ export function AgentChat() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const { register, handleSubmit, formState } = useForm<Values>();
   const chat = api.agent.chat.useMutation({
-    onSuccess: (data) => setReply(data.reply),
+    onSuccess: (data, variables) => {
+      setReply(data.reply);
+      if (variables.confirmed) setPendingMessage(null);
+    },
   });
 
   async function submit(values: Values, confirmed = false) {

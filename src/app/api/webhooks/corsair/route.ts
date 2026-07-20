@@ -36,15 +36,19 @@ export async function POST(request: Request) {
       );
     }
 
-    await connections.notify(
-      "on_emit_realtime",
-      JSON.stringify({
-        tenantId,
-        plugin: result.plugin,
-        action: result.action,
-        receivedAt: new Date().toISOString(),
-      }),
-    );
+    try {
+      await connections.notify(
+        "on_emit_realtime",
+        JSON.stringify({
+          tenantId,
+          plugin: result.plugin,
+          action: result.action,
+          receivedAt: new Date().toISOString(),
+        }),
+      );
+    } catch (error) {
+      console.error("Realtime notify failed after webhook success:", error);
+    }
 
     return NextResponse.json(result.response ?? { success: true }, {
       headers: result.responseHeaders,

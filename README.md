@@ -26,7 +26,9 @@ On Emit is a Superhuman-style Gmail and Google Calendar command center built wit
 
 1. Install dependencies: `pnpm install`
 2. Copy `.env.example` to `.env` and fill the required values.
-3. Apply the schema: `pnpm db:push`
+3. For local development only, apply the schema with `pnpm db:push`. Never use
+   `db:push` in production; review the generated SQL/schema diff, take a backup,
+   and apply versioned migrations with `pnpm db:migrate` instead.
 4. In Corsair, configure Gmail and Google Calendar OAuth credentials and the redirect URL shown below.
 5. Start the app: `pnpm dev`
 6. Sign in with Supabase, open **Connected services**, and connect Gmail and Calendar.
@@ -58,7 +60,7 @@ For local Google webhooks, expose the app with ngrok and set `APP_URL` to the HT
 
 ## Database
 
-Corsair owns `corsair_integrations`, `corsair_accounts`, `corsair_entities`, and `corsair_events`. On Emit adds `corsair_email_priorities`. The configured database predates Drizzle's migration journal, so existing installations should use `pnpm db:push`; clean databases may use `pnpm db:migrate`.
+Corsair owns `corsair_integrations`, `corsair_accounts`, `corsair_entities`, and `corsair_events`. On Emit adds `corsair_email_priorities`. Clean databases should use `pnpm db:migrate`. For a database created before Drizzle's migration journal, first take a backup and compare its live schema with the SQL in `drizzle/`. Establish and record a reviewed baseline that represents the migrations already present before running any newer migration; do not replay the initial migrations over existing tables or use `db:push` as a production baseline shortcut.
 
 ## Verification
 
