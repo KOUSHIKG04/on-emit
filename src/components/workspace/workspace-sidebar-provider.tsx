@@ -18,6 +18,7 @@ export function WorkspaceSidebarProvider({
       style={
         {
           "--sidebar-width": `${sidebarWidth}px`,
+          "--sidebar-width-icon": "4rem",
         } as React.CSSProperties
       }
     >

@@ -27,6 +27,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import type { WorkspaceView } from "@/stores/workspace-store";
 
@@ -94,7 +95,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 size="lg"
-                className="md:h-8 md:p-0"
+                className="justify-center md:h-10 md:p-0"
                 tooltip={{ children: "On Emit", hidden: false }}
                 onClick={() => openView("focus")}
               >
@@ -123,7 +124,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                         isActive={
                           isAgent ? agentPanelOpen : activeView === item.view
                         }
-                        className="px-2.5 md:px-2"
+                        className="justify-center px-0"
                         onClick={() => openView(item.view)}
                       >
                         <Icon />

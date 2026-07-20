@@ -53,17 +53,17 @@ export function NavUser({ user, compact = false }: NavUserProps) {
                 size="lg"
                 className={
                   compact
-                    ? "data-open:bg-sidebar-accent md:h-8 md:p-0"
+                    ? "data-open:bg-sidebar-accent justify-center md:h-10 md:p-0"
                     : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 }
               />
             }
           >
-            <Avatar className="size-8 rounded-lg">
+            <Avatar className="size-9 rounded-xl ring-1 ring-border">
               {user.avatar ? (
                 <AvatarImage src={user.avatar} alt={user.name} />
               ) : null}
-              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+              <AvatarFallback className="rounded-xl">{initials}</AvatarFallback>
             </Avatar>
 
             <div
@@ -81,30 +81,32 @@ export function NavUser({ user, compact = false }: NavUserProps) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            className="min-w-64 rounded-lg"
+            className="min-w-72 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
           >
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex items-center gap-3 py-1.5">
-                <Avatar className="size-8 rounded-lg">
-                  {user.avatar ? (
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                  ) : null}
-                  <AvatarFallback className="rounded-lg">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex items-center gap-3 py-1.5">
+                  <Avatar className="size-10 rounded-xl ring-1 ring-border">
+                    {user.avatar ? (
+                      <AvatarImage src={user.avatar} alt={user.name} />
+                    ) : null}
+                    <AvatarFallback className="rounded-xl">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
-                  </span>
+                  <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{user.name}</span>
+                    <span className="text-muted-foreground truncate text-xs">
+                      {user.email}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </DropdownMenuLabel>
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
 
