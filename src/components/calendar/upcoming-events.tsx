@@ -84,7 +84,7 @@ function formatEventTime(event: CalendarEvent) {
     return formatter.format(start);
   }
 
-  return `${formatter.format(start)} – ${formatter.format(end)}`;
+  return `${formatter.format(start)} - ${formatter.format(end)}`;
 }
 
 export function UpcomingEvents() {

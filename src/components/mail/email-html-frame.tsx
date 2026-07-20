@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 type EmailHtmlFrameProps = {
   htmlDocument: string;
   title: string;
+  allowRemoteImages?: boolean;
 };
 
 type EmailHeightMessage = {
@@ -56,7 +57,11 @@ function isEmailHeightMessage(value: unknown): value is EmailHeightMessage {
   );
 }
 
-export function EmailHtmlFrame({ htmlDocument, title }: EmailHtmlFrameProps) {
+export function EmailHtmlFrame({
+  htmlDocument,
+  title,
+  allowRemoteImages = false,
+}: EmailHtmlFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const [height, setHeight] = useState(440);
@@ -124,16 +129,30 @@ export function EmailHtmlFrame({ htmlDocument, title }: EmailHtmlFrameProps) {
     );
   }
 
+  const isCapped = height >= 30_000;
+
+  const imageAwareDocument = allowRemoteImages
+    ? themedDocument.replace("img-src data:;", "img-src data: https: http:;")
+    : themedDocument;
+
+  const finalThemedDocument = isCapped
+    ? imageAwareDocument.replace(
+        "</head>",
+        "<style>html, body { overflow-y: auto !important; height: auto !important; }</style></head>",
+      )
+    : imageAwareDocument;
+
   return (
     <iframe
       ref={iframeRef}
       title={`Email content: ${title}`}
-      srcDoc={themedDocument}
+      srcDoc={finalThemedDocument}
       sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
       referrerPolicy="no-referrer"
-      scrolling="no"
+      scrolling={isCapped ? "yes" : "no"}
       style={{
         height: `${height}px`,
+        overflowY: isCapped ? "auto" : "hidden",
       }}
       className="border-border bg-card block w-full max-w-full overflow-hidden rounded-lg border"
     />

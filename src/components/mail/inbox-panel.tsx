@@ -75,7 +75,7 @@ export function InboxPanel() {
         {gmailDisconnected ? (
           <EmptyState
             title="Gmail is not connected"
-            description="Connect Gmail to your Supabase user’s Corsair tenant."
+            description="Connect Gmail to your Supabase user's Corsair tenant."
           />
         ) : null}
 

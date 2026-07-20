@@ -295,8 +295,9 @@ export const gmailRouter = createTRPCRouter({
           .map((message) => message.id)
           .filter((id): id is string => Boolean(id));
 
-        const messages = await Promise.all(
-          messageIds.map(async (messageId) => {
+        const messages = [];
+        for (const messageId of messageIds) {
+          try {
             /*
              * Raw returns the original complete RFC/MIME email.
              */
@@ -313,10 +314,11 @@ export const gmailRouter = createTRPCRouter({
             }
 
             const parsed = await parseGmailRaw(rawMessage.raw);
-
-            return createSafeParsedMessage(messageId, parsed);
-          }),
-        );
+            messages.push(createSafeParsedMessage(messageId, parsed));
+          } catch (error) {
+            console.error(`Failed to load message ${messageId}:`, error);
+          }
+        }
 
         const firstMessage = messages[0];
 

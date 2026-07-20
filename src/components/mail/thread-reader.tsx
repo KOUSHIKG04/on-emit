@@ -1,9 +1,18 @@
 "use client";
 
-import { AlertCircle, MailOpen, Paperclip, UserRound } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertCircle,
+  ImageIcon,
+  MailOpen,
+  Paperclip,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 
 import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
 import { EmailMarkdown } from "@/components/mail/email-markdown";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -13,7 +22,9 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
-import { api } from "@/trpc/react";
+import { api, type RouterOutputs } from "@/trpc/react";
+
+type ThreadMessage = RouterOutputs["gmail"]["thread"]["messages"][number];
 
 type DisplayAddress = {
   name: string | null;
@@ -173,20 +184,7 @@ export function ThreadReader() {
                     </div>
                   </header>
 
-                  <div className="mt-5 max-w-full min-w-0">
-                    {message.htmlDocument ? (
-                      <EmailHtmlFrame
-                        htmlDocument={message.htmlDocument}
-                        title={message.subject}
-                      />
-                    ) : message.text ? (
-                      <EmailMarkdown body={message.text} />
-                    ) : (
-                      <p className="text-muted-foreground text-sm">
-                        This email did not contain a readable body.
-                      </p>
-                    )}
-                  </div>
+                  <MessageBody message={message} />
 
                   {regularAttachments.length > 0 ? (
                     <div className="border-border mt-5 border-t pt-4">
@@ -223,6 +221,55 @@ export function ThreadReader() {
         </>
       ) : null}
     </Card>
+  );
+}
+
+function MessageBody({ message }: { message: ThreadMessage }) {
+  const [allowRemoteImages, setAllowRemoteImages] = useState(false);
+  const hasRemoteImages = message.htmlDocument
+    ? /<img[^>]+src=["']https?:\/\//i.test(message.htmlDocument)
+    : false;
+
+  return (
+    <div className="mt-5 max-w-full min-w-0">
+      {message.htmlDocument ? (
+        <>
+          {hasRemoteImages && !allowRemoteImages ? (
+            <div className="border-border bg-muted/40 mb-3 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-2">
+                <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                <p className="text-muted-foreground text-xs leading-5">
+                  Remote images are hidden to reduce tracking. Embedded images
+                  are still shown.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => setAllowRemoteImages(true)}
+              >
+                <ImageIcon />
+                Load images
+              </Button>
+            </div>
+          ) : null}
+
+          <EmailHtmlFrame
+            htmlDocument={message.htmlDocument}
+            title={message.subject}
+            allowRemoteImages={allowRemoteImages}
+          />
+        </>
+      ) : message.text ? (
+        <EmailMarkdown body={message.text} />
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          This email did not contain a readable body.
+        </p>
+      )}
+    </div>
   );
 }
 
