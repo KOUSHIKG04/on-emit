@@ -24,6 +24,7 @@ type ThreadActionsProps = {
   threadId: string;
   messageId: string | null;
   unread: boolean;
+  onArchived?: () => void;
 };
 
 type ReplyFormValues = {
@@ -45,6 +46,7 @@ export function ThreadActions({
   threadId,
   messageId,
   unread,
+  onArchived,
 }: ThreadActionsProps) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -64,7 +66,11 @@ export function ThreadActions({
       await utils.gmail.inbox.invalidate();
 
       if (data.action === "archive") {
-        selectThread(null);
+        if (onArchived) {
+          onArchived();
+        } else {
+          selectThread(null);
+        }
       } else {
         await utils.gmail.thread.invalidate({ threadId });
       }

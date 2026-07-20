@@ -8,6 +8,7 @@ import {
   Paperclip,
   ShieldCheck,
   UserRound,
+  X,
 } from "lucide-react";
 
 import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
@@ -57,8 +58,15 @@ function formatAddresses(addresses: DisplayAddress[]) {
     .join(", ");
 }
 
-export function ThreadReader() {
-  const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+export function ThreadReader({
+  threadId,
+  onClose,
+}: {
+  threadId?: string | null;
+  onClose?: () => void;
+} = {}) {
+  const storedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+  const selectedThreadId = threadId === undefined ? storedThreadId : threadId;
 
   const {
     data: thread,
@@ -114,7 +122,23 @@ export function ThreadReader() {
       {thread ? (
         <>
           <CardHeader className="border-b">
-            <CardTitle className="text-xl">{thread.subject}</CardTitle>
+            <div className="flex items-start justify-between gap-4">
+              <CardTitle className="min-w-0 text-xl">
+                {thread.subject}
+              </CardTitle>
+              {onClose ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0"
+                  aria-label="Close conversation"
+                  onClick={onClose}
+                >
+                  <X />
+                </Button>
+              ) : null}
+            </div>
 
             <CardDescription>
               {thread.messageCount} message
@@ -125,6 +149,7 @@ export function ThreadReader() {
               threadId={thread.id}
               messageId={thread.messages.at(-1)?.id ?? null}
               unread={thread.unread}
+              {...(onClose ? { onArchived: onClose } : {})}
             />
           </CardHeader>
 

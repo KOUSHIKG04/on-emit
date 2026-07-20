@@ -28,6 +28,29 @@ const suggestions = [
   { label: "Starred", query: "is:starred" },
 ] as const;
 
+const operatorExamples = [
+  {
+    label: "From a sender",
+    query: "from:person@example.com",
+    description: "Find every conversation from one address.",
+  },
+  {
+    label: "With attachments",
+    query: "has:attachment",
+    description: "Only show messages that contain files.",
+  },
+  {
+    label: "After a date",
+    query: "after:2026/07/01",
+    description: "Limit results to a specific time period.",
+  },
+  {
+    label: "Exact subject",
+    query: 'subject:"project update"',
+    description: "Search for words in the subject line.",
+  },
+] as const;
+
 type SearchValues = { query: string };
 
 function loadRecentSearches() {
@@ -45,11 +68,17 @@ function loadRecentSearches() {
   }
 }
 
-export function GmailSearch() {
+export function GmailSearch({
+  variant = "page",
+}: {
+  variant?: "page" | "panel";
+}) {
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
-  const selectThread = useWorkspaceStore((state) => state.selectThread);
+  const selectedThreadId = useWorkspaceStore(
+    (state) => state.selectedSearchThreadId,
+  );
+  const selectThread = useWorkspaceStore((state) => state.selectSearchThread);
   const activeView = useWorkspaceStore((state) => state.activeView);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { register, handleSubmit, setValue, formState } = useForm<SearchValues>(
@@ -125,8 +154,20 @@ export function GmailSearch() {
   const gmailDisconnected = search.error?.data?.code === "PRECONDITION_FAILED";
 
   return (
-    <Card className="min-h-[550px] overflow-hidden">
-      <CardHeader className="border-b">
+    <Card
+      className={cn(
+        "gap-0 overflow-hidden py-0",
+        variant === "panel"
+          ? "min-h-full rounded-none ring-0"
+          : "mx-auto min-h-[640px] w-full max-w-5xl",
+      )}
+    >
+      <CardHeader
+        className={cn(
+          "border-b p-5",
+          variant === "page" && "p-7 md:p-9",
+        )}
+      >
         <CardTitle className="flex items-center gap-2">
           <Search className="size-5" />
           Advanced Gmail search
@@ -137,7 +178,10 @@ export function GmailSearch() {
         </CardDescription>
 
         <form
-          className="mt-3 flex flex-col gap-2 sm:flex-row"
+          className={cn(
+            "mt-4 flex flex-col gap-2 sm:flex-row",
+            variant === "page" && "md:mt-6",
+          )}
           onSubmit={handleSubmit(runSearch)}
           noValidate
         >
@@ -184,7 +228,7 @@ export function GmailSearch() {
 
       <CardContent className="p-0">
         {!submittedQuery && recentSearches.length > 0 ? (
-          <div className="p-5">
+          <div className={cn("border-b p-5", variant === "page" && "p-7")}>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-muted-foreground flex items-center gap-2 text-xs font-semibold uppercase">
                 <Clock3 className="size-3.5" /> Recent searches
@@ -209,6 +253,40 @@ export function GmailSearch() {
                 >
                   {query}
                 </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {!submittedQuery ? (
+          <div className={cn("p-5", variant === "page" && "p-7 md:p-9")}>
+            <div className="mb-4">
+              <p className="text-sm font-semibold">
+                Search with Gmail operators
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs leading-5">
+                Start with one operator, then combine them to narrow your
+                results.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {operatorExamples.map((example) => (
+                <button
+                  key={example.query}
+                  type="button"
+                  className="hover:bg-muted/60 rounded-xl border p-4 text-left transition-colors"
+                  onClick={() => applyQuery(example.query)}
+                >
+                  <span className="block text-sm font-medium">
+                    {example.label}
+                  </span>
+                  <code className="text-primary bg-primary/10 mt-2 inline-block max-w-full truncate rounded-md px-2 py-1 text-xs">
+                    {example.query}
+                  </code>
+                  <span className="text-muted-foreground mt-2 block text-xs leading-5">
+                    {example.description}
+                  </span>
+                </button>
               ))}
             </div>
           </div>

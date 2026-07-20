@@ -15,6 +15,7 @@ export type InboxLabelFilter = "all" | "unread" | "read";
 export type WorkspaceState = {
   activeView: WorkspaceView;
   selectedThreadId: string | null;
+  selectedSearchThreadId: string | null;
   commandPaletteOpen: boolean;
   quickActionMode: QuickActionMode;
   composerOpen: boolean;
@@ -31,6 +32,7 @@ export type WorkspaceState = {
 export type WorkspaceActions = {
   setActiveView: (view: WorkspaceView) => void;
   selectThread: (threadId: string | null) => void;
+  selectSearchThread: (threadId: string | null) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setQuickActionMode: (mode: QuickActionMode) => void;
   setComposerOpen: (open: boolean) => void;
@@ -57,6 +59,7 @@ function getLocalDateKey() {
 export const defaultWorkspaceState: WorkspaceState = {
   activeView: "focus",
   selectedThreadId: null,
+  selectedSearchThreadId: null,
   commandPaletteOpen: false,
   quickActionMode: "email",
   composerOpen: false,
@@ -82,6 +85,10 @@ export function createWorkspaceStore(
 
     selectThread: (selectedThreadId) => {
       set({ selectedThreadId });
+    },
+
+    selectSearchThread: (selectedSearchThreadId) => {
+      set({ selectedSearchThreadId });
     },
 
     setCommandPaletteOpen: (commandPaletteOpen) => {
