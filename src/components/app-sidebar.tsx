@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Inbox, Sparkles, Zap } from "lucide-react";
+import { CalendarDays, Inbox, Search, Sparkles, Zap } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -40,6 +40,12 @@ const workspaceItems = [
     view: "calendar" as const,
     icon: <CalendarDays />,
     description: "Upcoming events",
+  },
+  {
+    title: "Search",
+    view: "search" as const,
+    icon: <Search />,
+    description: "Advanced Gmail search",
   },
 ];
 

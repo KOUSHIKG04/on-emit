@@ -3,6 +3,7 @@
 import { UpcomingEvents } from "@/components/calendar/upcoming-events";
 import { FocusWorkspace } from "@/components/workspace/focus-workspace";
 import { InboxWorkspace } from "@/components/workspace/inbox-workspace";
+import { SearchWorkspace } from "@/components/workspace/search-workspace";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 
 export function WorkspaceContent() {
@@ -12,6 +13,7 @@ export function WorkspaceContent() {
     return <InboxWorkspace />;
   }
   if (activeView === "calendar") return <UpcomingEvents />;
+  if (activeView === "search") return <SearchWorkspace />;
 
   return <FocusWorkspace />;
 }

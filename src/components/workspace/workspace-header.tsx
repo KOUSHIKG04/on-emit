@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Inbox, Sparkles } from "lucide-react";
+import { CalendarDays, Inbox, Search, Sparkles } from "lucide-react";
 
 import { QuickActionDialog } from "@/components/quick-actions/quick-action-dialog";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +22,11 @@ const viewDetails = {
     label: "Calendar",
     description: "Review your upcoming schedule",
     icon: CalendarDays,
+  },
+  search: {
+    label: "Search",
+    description: "Find Gmail conversations with advanced operators",
+    icon: Search,
   },
 } as const;
 

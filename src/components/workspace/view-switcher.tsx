@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Inbox, Sparkles } from "lucide-react";
+import { CalendarDays, Inbox, Search, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
@@ -26,13 +26,17 @@ const views: Array<{
     label: "Calendar",
     icon: CalendarDays,
   },
+  {
+    value: "search",
+    label: "Search",
+    icon: Search,
+  },
 ];
 
 export function ViewSwitcher() {
   const activeView = useWorkspaceStore((state) => state.activeView);
-  
-  const setActiveView = 
-        useWorkspaceStore((state) => state.setActiveView);
+
+  const setActiveView = useWorkspaceStore((state) => state.setActiveView);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

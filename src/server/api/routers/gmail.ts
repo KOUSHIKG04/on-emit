@@ -109,6 +109,11 @@ const threadActionInput = z.object({
   action: z.enum(["archive", "mark_read", "mark_unread"]),
 });
 
+const searchInput = z.object({
+  query: z.string().trim().min(1).max(2_048),
+  maxResults: z.number().int().min(1).max(50).default(25),
+});
+
 async function ensureGmailConnected(tenantId: string) {
   const connectionStatus = await corsair.manage.connectionStatus.get({
     tenantId,
@@ -120,6 +125,69 @@ async function ensureGmailConnected(tenantId: string) {
       message: "Connect Gmail before performing this action.",
     });
   }
+}
+
+async function listThreadSummaries(
+  tenantCorsair: ReturnType<typeof getTenantCorsair>,
+  query: string,
+  maxResults: number,
+) {
+  const threadList = await tenantCorsair.gmail.api.threads.list({
+    userId: "me",
+    q: query,
+    maxResults,
+    includeSpamTrash: false,
+  });
+
+  const threadIds = (threadList.threads ?? [])
+    .map((thread) => thread.id)
+    .filter((id): id is string => Boolean(id));
+
+  // Gmail's list endpoint only returns IDs and snippets. Load each matching
+  // thread so the UI can show reliable sender, subject, date and unread state.
+  const detailedThreads = await Promise.all(
+    threadIds.map((threadId) =>
+      tenantCorsair.gmail.api.threads.get({
+        userId: "me",
+        id: threadId,
+        format: "full",
+      }),
+    ),
+  );
+
+  const threads = detailedThreads.map((thread) => {
+    const messages = thread.messages ?? [];
+    const latestMessage = messages[messages.length - 1];
+    const headers = latestMessage?.payload?.headers;
+    const sender = parseSender(getHeader(headers, "From"));
+
+    return {
+      id: thread.id ?? "",
+      subject: getHeader(headers, "Subject") ?? "(No subject)",
+      senderName: sender.name,
+      senderEmail: sender.email,
+      snippet:
+        latestMessage?.snippet ??
+        thread.snippet ??
+        "No message preview available.",
+      receivedAt: toISOString(latestMessage?.internalDate),
+      unread: latestMessage?.labelIds?.includes("UNREAD") ?? false,
+      messageCount: messages.length,
+    };
+  });
+
+  threads.sort((first, second) => {
+    const firstTime = first.receivedAt
+      ? new Date(first.receivedAt).getTime()
+      : 0;
+    const secondTime = second.receivedAt
+      ? new Date(second.receivedAt).getTime()
+      : 0;
+
+    return secondTime - firstTime;
+  });
+
+  return threads;
 }
 
 async function createReplyPayload(
@@ -173,6 +241,31 @@ async function createReplyPayload(
 }
 
 export const gmailRouter = createTRPCRouter({
+  search: protectedProcedure
+    .input(searchInput)
+    .query(async ({ ctx, input }) => {
+      try {
+        await ensureGmailConnected(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+
+        return await listThreadSummaries(
+          tenantCorsair,
+          input.query,
+          input.maxResults,
+        );
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        console.error("Failed to search Gmail:", error);
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "Gmail search could not be completed. Please try again.",
+        });
+      }
+    }),
+
   reply: protectedProcedure
     .input(replyInput)
     .mutation(async ({ ctx, input }) => {
@@ -337,78 +430,7 @@ export const gmailRouter = createTRPCRouter({
        * threads.list only returns lightweight thread information.
        * We request a small number to avoid unnecessary API calls.
        */
-      const threadList = await tenantCorsair.gmail.api.threads.list({
-        userId: "me",
-        q: "in:inbox",
-        labelIds: ["INBOX"],
-        maxResults: 12,
-        includeSpamTrash: false,
-      });
-
-      const threadIds = (threadList.threads ?? [])
-        .map((thread) => thread.id)
-        .filter((id): id is string => Boolean(id));
-
-      /*
-       * Fetch each thread so that we can read metadata such as:
-       * Subject, From and Date.
-       */
-
-      // TODO: Switch back to metadata after Corsair supports repeated metadataHeaders.
-      const detailedThreads = await Promise.all(
-        threadIds.map((threadId) =>
-          tenantCorsair.gmail.api.threads.get({
-            userId: "me",
-            id: threadId,
-            format: "full",
-            // metadataHeaders: ["From", "Subject", "Date"],
-          }),
-        ),
-      );
-
-      const inboxThreads = detailedThreads.map((thread) => {
-        const messages = thread.messages ?? [];
-
-        // Gmail normally returns messages from oldest to newest.
-        const latestMessage = messages[messages.length - 1];
-
-        const headers = latestMessage?.payload?.headers;
-
-        const subject = getHeader(headers, "Subject") ?? "(No subject)";
-        const fromHeader = getHeader(headers, "From");
-        const sender = parseSender(fromHeader);
-
-        return {
-          id: thread.id ?? "",
-          subject,
-          senderName: sender.name,
-          senderEmail: sender.email,
-          snippet:
-            latestMessage?.snippet ??
-            thread.snippet ??
-            "No message preview available.",
-          receivedAt: toISOString(latestMessage?.internalDate),
-          unread: latestMessage?.labelIds?.includes("UNREAD") ?? false,
-          messageCount: messages.length,
-        };
-      });
-
-      /*
-       * Show newest threads first.
-       */
-      inboxThreads.sort((first, second) => {
-        const firstTime = first.receivedAt
-          ? new Date(first.receivedAt).getTime()
-          : 0;
-
-        const secondTime = second.receivedAt
-          ? new Date(second.receivedAt).getTime()
-          : 0;
-
-        return secondTime - firstTime;
-      });
-
-      return inboxThreads;
+      return await listThreadSummaries(tenantCorsair, "in:inbox", 12);
     } catch (error) {
       /*
        * Preserve intentional tRPC errors such as Gmail not connected.
