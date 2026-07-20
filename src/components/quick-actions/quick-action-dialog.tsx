@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 
 type QuickActionMode = "email" | "event";
 
@@ -33,8 +34,9 @@ const actionModes = [
 ];
 
 export function QuickActionDialog() {
-  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<QuickActionMode>("email");
+  const open = useWorkspaceStore((state) => state.commandPaletteOpen);
+  const setOpen = useWorkspaceStore((state) => state.setCommandPaletteOpen);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -46,7 +48,7 @@ export function QuickActionDialog() {
 
     document.addEventListener("keydown", handleShortcut);
     return () => document.removeEventListener("keydown", handleShortcut);
-  }, []);
+  }, [setOpen]);
 
   return (
     <>

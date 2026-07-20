@@ -115,6 +115,10 @@ const searchInput = z.object({
   maxResults: z.number().int().min(1).max(50).default(25),
 });
 
+const mailboxListInput = z.object({
+  maxResults: z.number().int().min(12).max(50).default(12),
+});
+
 async function ensureGmailConnected(tenantId: string) {
   const connectionStatus = await corsair.manage.connectionStatus.get({
     tenantId,
@@ -433,7 +437,9 @@ export const gmailRouter = createTRPCRouter({
       }
     }),
 
-  inbox: protectedProcedure.query(async ({ ctx }) => {
+  inbox: protectedProcedure
+    .input(mailboxListInput)
+    .query(async ({ ctx, input }) => {
     try {
       /*
        * Check whether the Supabase user's Gmail account
@@ -464,7 +470,7 @@ export const gmailRouter = createTRPCRouter({
       const inboxThreads = await listThreadSummaries(
         tenantCorsair,
         "in:inbox",
-        12,
+        input.maxResults,
       );
       const priorities = await getEmailPriorities(ctx.userId, inboxThreads);
 
@@ -495,7 +501,38 @@ export const gmailRouter = createTRPCRouter({
         message: "Gmail could not be loaded. Please try again.",
       });
     }
-  }),
+    }),
+
+  drafts: protectedProcedure
+    .input(mailboxListInput)
+    .query(async ({ ctx, input }) => {
+      try {
+        await ensureGmailConnected(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const drafts = await listThreadSummaries(
+          tenantCorsair,
+          "in:drafts",
+          input.maxResults,
+        );
+
+        return drafts.map((thread) => ({
+          ...thread,
+          priority: "normal" as const,
+          priorityReason: "Draft message",
+          prioritySource: "rules" as const,
+        }));
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        console.error("Failed to load Gmail drafts:", error);
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "Gmail drafts could not be loaded.",
+        });
+      }
+    }),
 
   thread: protectedProcedure
     .input(
