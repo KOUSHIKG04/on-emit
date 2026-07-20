@@ -53,7 +53,7 @@ export function NavUser({ user, compact = false }: NavUserProps) {
                 size="lg"
                 className={
                   compact
-                    ? "data-open:bg-sidebar-accent justify-center md:h-10 md:p-0"
+                    ? "data-open:bg-sidebar-accent justify-center md:h-10 md:p-0 group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0!"
                     : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 }
               />

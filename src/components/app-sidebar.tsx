@@ -95,7 +95,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 size="lg"
-                className="justify-center md:h-10 md:p-0"
+                className="justify-center md:h-10 md:p-0 group-data-[collapsible=icon]:w-full!"
                 tooltip={{ children: "On Emit", hidden: false }}
                 onClick={() => openView("focus")}
               >
@@ -125,7 +125,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                         isActive={
                           isAgent ? agentPanelOpen : activeView === item.view
                         }
-                        className="justify-center px-0"
+                        className="justify-center px-0 group-data-[collapsible=icon]:w-full!"
                         onClick={() => openView(item.view)}
                       >
                         <Icon />
