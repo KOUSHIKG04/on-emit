@@ -136,7 +136,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         </SidebarFooter>
       </Sidebar>
 
-      <Sidebar collapsible="none" className="hidden flex-1 md:flex">
+      <Sidebar
+        collapsible="none"
+        className="hidden min-w-0 flex-1 overflow-hidden md:flex"
+      >
         {activeView === "inbox" ? <InboxPanel variant="sidebar" /> : null}
       </Sidebar>
     </Sidebar>

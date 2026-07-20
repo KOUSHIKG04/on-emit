@@ -125,14 +125,14 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   return (
     <Card
       className={cn(
-        "min-h-[550px]",
+        "w-full min-w-0 min-h-[550px]",
         sidebar &&
           "bg-sidebar text-sidebar-foreground h-full min-h-0 gap-0 rounded-none py-0 shadow-none ring-0",
       )}
     >
       <CardHeader className={cn("gap-0", sidebar ? "p-0" : "border-b p-0")}>
-        <div className="flex items-center gap-1 border-b px-3 py-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1 border-b px-3 py-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
             {mailboxTabs.map((tab) => {
               const Icon = tab.icon;
               const active = mode === tab.value;
@@ -143,7 +143,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                   type="button"
                   aria-pressed={active}
                   className={cn(
-                    "text-muted-foreground hover:text-foreground flex h-9 min-w-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors",
+                    "text-muted-foreground hover:text-foreground flex h-9 min-w-0 shrink items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors",
                     active &&
                       "bg-background text-foreground shadow-sm ring-1 ring-border",
                   )}
@@ -311,7 +311,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                           <Sparkles className="text-primary size-3 shrink-0" />
                         ) : null}
                         <ClientDateTime
-                          className="text-muted-foreground ml-auto shrink-0 text-[11px]"
+                          className="text-muted-foreground ml-auto max-w-20 shrink-0 truncate text-right text-[11px]"
                           value={thread.receivedAt}
                           format="inbox"
                         />

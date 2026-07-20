@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
         defaultOpen={false}
         style={
           {
-            "--sidebar-width": "22rem",
+            "--sidebar-width": "clamp(24rem, 32vw, 31rem)",
           } as React.CSSProperties
         }
       >
