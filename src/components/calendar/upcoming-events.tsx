@@ -2,6 +2,7 @@
 
 import { AlertCircle, CalendarDays, MapPin, Video } from "lucide-react";
 
+import { EventActions } from "@/components/calendar/event-actions";
 import {
   Card,
   CardContent,
@@ -173,7 +174,10 @@ function EventRow({ event }: { event: CalendarEvent }) {
             {formatEventTime(event)}
           </p>
 
-          <p className="mt-1 font-medium">{event.title}</p>
+          <div className="mt-1 flex items-start justify-between gap-2">
+            <p className="min-w-0 font-medium">{event.title}</p>
+            <EventActions event={event} />
+          </div>
 
           {event.location ? (
             <p className="text-muted-foreground mt-2 flex items-center gap-1 text-xs">
