@@ -7,6 +7,7 @@ export type WorkspaceState = {
   selectedThreadId: string | null;
   commandPaletteOpen: boolean;
   composerOpen: boolean;
+  agentPanelOpen: boolean;
   sidebarCollapsed: boolean;
 };
 
@@ -15,6 +16,7 @@ export type WorkspaceActions = {
   selectThread: (threadId: string | null) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setComposerOpen: (open: boolean) => void;
+  setAgentPanelOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   closeOverlays: () => void;
 };
@@ -26,6 +28,7 @@ export const defaultWorkspaceState: WorkspaceState = {
   selectedThreadId: null,
   commandPaletteOpen: false,
   composerOpen: false,
+  agentPanelOpen: false,
   sidebarCollapsed: false,
 };
 
@@ -51,6 +54,10 @@ export function createWorkspaceStore(
       set({ composerOpen });
     },
 
+    setAgentPanelOpen: (agentPanelOpen) => {
+      set({ agentPanelOpen });
+    },
+
     setSidebarCollapsed: (sidebarCollapsed) => {
       set({ sidebarCollapsed });
     },
@@ -59,6 +66,7 @@ export function createWorkspaceStore(
       set({
         commandPaletteOpen: false,
         composerOpen: false,
+        agentPanelOpen: false,
       });
     },
   }));

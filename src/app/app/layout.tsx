@@ -43,6 +43,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
     <WorkspaceStoreProvider>
       <RealtimeSync />
       <SidebarProvider
+        defaultOpen={false}
         style={
           {
             "--sidebar-width": "22rem",

@@ -17,7 +17,11 @@ import { cn } from "@/lib/utils";
 import { api } from "@/trpc/client";
 import { ClientDateTime } from "@/components/shared/client-date-time";
 
-export function InboxPanel() {
+type InboxPanelProps = {
+  variant?: "card" | "sidebar";
+};
+
+export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const [filter, setFilter] = useState<"all" | "high" | "low">("all");
   const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
   const selectThread = useWorkspaceStore((state) => state.selectThread);
@@ -37,21 +41,33 @@ export function InboxPanel() {
     filter === "all"
       ? threads
       : threads?.filter((thread) => thread.priority === filter);
+  const sidebar = variant === "sidebar";
 
   return (
-    <Card className="min-h-[550px]">
-      <CardHeader>
+    <Card
+      className={cn(
+        "min-h-[550px]",
+        sidebar &&
+          "bg-sidebar text-sidebar-foreground h-full min-h-0 gap-0 rounded-none py-0 shadow-none ring-0",
+      )}
+    >
+      <CardHeader className={cn(sidebar && "border-b p-4")}>
         <CardTitle className="flex items-center gap-2">
           <Mail className="size-5" />
           Inbox
         </CardTitle>
 
-        <CardDescription>
-          Your latest Gmail conversations through Corsair.
-        </CardDescription>
+        {!sidebar ? (
+          <CardDescription>
+            Your latest Gmail conversations through Corsair.
+          </CardDescription>
+        ) : null}
 
         <div
-          className="flex flex-wrap gap-2 pt-2"
+          className={cn(
+            "flex flex-wrap gap-2 pt-2",
+            sidebar && "grid grid-cols-3",
+          )}
           aria-label="Inbox priority filter"
         >
           {(
@@ -64,7 +80,7 @@ export function InboxPanel() {
             <Button
               key={value}
               type="button"
-              size="sm"
+              size={sidebar ? "xs" : "sm"}
               variant={filter === value ? "default" : "outline"}
               aria-pressed={filter === value}
               onClick={() => setFilter(value)}
@@ -76,7 +92,9 @@ export function InboxPanel() {
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent
+        className={cn(sidebar && "min-h-0 flex-1 overflow-y-auto px-0")}
+      >
         {isLoading ? <InboxSkeleton /> : null}
 
         {gmailDisconnected ? (
@@ -122,6 +140,7 @@ export function InboxPanel() {
                   type="button"
                   className={cn(
                     "hover:bg-muted/60 flex w-full gap-3 rounded-lg px-3 py-4 text-left transition-colors",
+                    sidebar && "rounded-none border-b px-4",
                     selected && "bg-muted",
                   )}
                   onClick={() => {

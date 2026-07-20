@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { api } from "@/trpc/client";
+import { cn } from "@/lib/utils";
 
 type ConnectionState = "connected" | "missing_credentials" | "not_connected";
 type ConnectablePlugin = "gmail" | "googlecalendar";
@@ -32,7 +33,7 @@ type Service = {
   state: ConnectionState;
 };
 
-export function IntegrationStatus() {
+export function IntegrationStatus({ className }: { className?: string }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const [redirectingPlugin, setRedirectingPlugin] =
@@ -84,7 +85,7 @@ export function IntegrationStatus() {
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div className="space-y-1.5">
           <CardTitle>Connected services</CardTitle>

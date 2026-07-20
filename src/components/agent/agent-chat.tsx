@@ -15,10 +15,11 @@ import {
 import { Field, FieldError } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/client";
+import { cn } from "@/lib/utils";
 
 type Values = { message: string };
 
-export function AgentChat() {
+export function AgentChat({ embedded = false }: { embedded?: boolean }) {
   const [reply, setReply] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const { register, handleSubmit, formState } = useForm<Values>();
@@ -38,16 +39,23 @@ export function AgentChat() {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-3xl">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bot /> Corsair agent
-        </CardTitle>
-        <CardDescription>
-          Ask one workflow to search mail, prepare an email, or schedule a
-          meeting. Writes require confirmation.
-        </CardDescription>
-      </CardHeader>
+    <Card
+      className={cn(
+        "mx-auto w-full max-w-3xl",
+        embedded && "max-w-none rounded-none bg-transparent shadow-none ring-0",
+      )}
+    >
+      {!embedded ? (
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot /> Corsair agent
+          </CardTitle>
+          <CardDescription>
+            Ask one workflow to search mail, prepare an email, or schedule a
+            meeting. Writes require confirmation.
+          </CardDescription>
+        </CardHeader>
+      ) : null}
       <CardContent className="space-y-5">
         {reply ? (
           <div className="bg-muted rounded-xl p-4 text-sm whitespace-pre-wrap">
