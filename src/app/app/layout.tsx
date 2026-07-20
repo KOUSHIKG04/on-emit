@@ -42,7 +42,13 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   return (
     <WorkspaceStoreProvider>
       <RealtimeSync />
-      <SidebarProvider>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "22rem",
+          } as React.CSSProperties
+        }
+      >
         <AppSidebar
           user={{
             name,

@@ -25,6 +25,7 @@ type NavUserProps = {
     email: string;
     avatar?: string;
   };
+  compact?: boolean;
 };
 
 function getInitials(name: string) {
@@ -38,7 +39,7 @@ function getInitials(name: string) {
   return initials || "OE";
 }
 
-export function NavUser({ user }: NavUserProps) {
+export function NavUser({ user, compact = false }: NavUserProps) {
   const { isMobile } = useSidebar();
   const initials = getInitials(user.name);
 
@@ -50,59 +51,69 @@ export function NavUser({ user }: NavUserProps) {
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+                className={
+                  compact
+                    ? "data-open:bg-sidebar-accent md:h-8 md:p-0"
+                    : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+                }
               />
             }
           >
-            <Avatar>
+            <Avatar className="size-8 rounded-lg">
               {user.avatar ? (
                 <AvatarImage src={user.avatar} alt={user.name} />
               ) : null}
-              <AvatarFallback>{initials}</AvatarFallback>
+              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
 
-            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+            <div
+              className={
+                compact
+                  ? "sr-only"
+                  : "grid min-w-0 flex-1 text-left text-sm leading-tight"
+              }
+            >
               <span className="truncate font-medium">{user.name}</span>
               <span className="truncate text-xs">{user.email}</span>
             </div>
 
-            <ChevronsUpDown className="ml-auto size-4" />
+            {!compact ? <ChevronsUpDown className="ml-auto size-4" /> : null}
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            className="min-w-64"
+            className="min-w-64 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
           >
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex items-center gap-3 py-1.5">
-                  <Avatar>
-                    {user.avatar ? (
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                    ) : null}
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex items-center gap-3 py-1.5">
+                <Avatar className="size-8 rounded-lg">
+                  {user.avatar ? (
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                  ) : null}
+                  <AvatarFallback className="rounded-lg">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
 
-                  <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{user.name}</span>
-                    <span className="text-muted-foreground truncate text-xs">
-                      {user.email}
-                    </span>
-                  </div>
+                <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {user.email}
+                  </span>
                 </div>
-              </DropdownMenuLabel>
-            </DropdownMenuGroup>
+              </div>
+            </DropdownMenuLabel>
 
             <DropdownMenuSeparator />
 
-            <div className="px-1 py-1">
-              <div className="text-muted-foreground flex items-center gap-2 rounded-md px-2 py-1.5 text-xs">
+            <DropdownMenuGroup>
+              <div className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-xs">
                 <UserRound className="size-4" />
                 Supabase authenticated
               </div>
-            </div>
+            </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
 
