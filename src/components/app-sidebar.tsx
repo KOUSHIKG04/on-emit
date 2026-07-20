@@ -120,6 +120,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                     <SidebarMenuItem key={item.view}>
                       <SidebarMenuButton
                         type="button"
+                        aria-label={item.title}
                         tooltip={{ children: item.title, hidden: false }}
                         isActive={
                           isAgent ? agentPanelOpen : activeView === item.view
@@ -128,7 +129,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                         onClick={() => openView(item.view)}
                       >
                         <Icon />
-                        <span>{item.title}</span>
+                        <span className="sr-only">{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
