@@ -1,7 +1,15 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Bot, CalendarDays, Inbox, Search, Sparkles, Zap } from "lucide-react";
+import {
+  Bot,
+  CalendarDays,
+  Inbox,
+  Search,
+  Settings2,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 
 import { InboxPanel } from "@/components/mail/inbox-panel";
 import { NavUser } from "@/components/nav-user";
@@ -40,6 +48,7 @@ const workspaceItems: WorkspaceItem[] = [
   { title: "Calendar", view: "calendar", icon: CalendarDays },
   { title: "Search", view: "search", icon: Search },
   { title: "Agent", view: "agent", icon: Bot },
+  { title: "Settings", view: "settings", icon: Settings2 },
 ];
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
@@ -128,7 +137,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       </Sidebar>
 
       <Sidebar collapsible="none" className="hidden flex-1 md:flex">
-        <InboxPanel variant="sidebar" />
+        {activeView === "inbox" ? <InboxPanel variant="sidebar" /> : null}
       </Sidebar>
     </Sidebar>
   );

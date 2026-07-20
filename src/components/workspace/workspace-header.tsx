@@ -1,7 +1,15 @@
 "use client";
 
-import { Bot, CalendarDays, Inbox, Search, Sparkles } from "lucide-react";
+import {
+  Bot,
+  CalendarDays,
+  Inbox,
+  Search,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 
+import { IntegrationActions } from "@/components/integrations/integration-actions";
 import { QuickActionDialog } from "@/components/quick-actions/quick-action-dialog";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -33,6 +41,11 @@ const viewDetails = {
     description: "Find Gmail conversations with advanced operators",
     icon: Search,
   },
+  settings: {
+    label: "Settings",
+    description: "Manage Gmail, Calendar, and webhook connections",
+    icon: Settings2,
+  },
 } as const;
 
 export function WorkspaceHeader() {
@@ -59,7 +72,10 @@ export function WorkspaceHeader() {
           </div>
         </div>
 
-        <QuickActionDialog />
+        <div className="flex shrink-0 items-center gap-2">
+          <IntegrationActions />
+          <QuickActionDialog />
+        </div>
       </div>
     </header>
   );

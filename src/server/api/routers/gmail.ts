@@ -243,6 +243,35 @@ async function createReplyPayload(
 }
 
 export const gmailRouter = createTRPCRouter({
+  stats: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      await ensureGmailConnected(ctx.userId);
+      const tenantCorsair = getTenantCorsair(ctx.userId);
+      const inbox = await tenantCorsair.gmail.api.labels.get({
+        userId: "me",
+        id: "INBOX",
+      });
+      const total = inbox.messagesTotal ?? 0;
+      const unread = inbox.messagesUnread ?? 0;
+
+      return {
+        total,
+        unread,
+        read: Math.max(0, total - unread),
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      console.error("Failed to load Gmail dashboard statistics:", error);
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message: "Gmail statistics could not be loaded.",
+      });
+    }
+  }),
+
   search: protectedProcedure
     .input(searchInput)
     .query(async ({ ctx, input }) => {
