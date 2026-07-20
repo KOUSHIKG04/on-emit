@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Inbox, Search, Sparkles } from "lucide-react";
+import { Bot, CalendarDays, Inbox, Search, Sparkles } from "lucide-react";
 
 import { QuickActionDialog } from "@/components/quick-actions/quick-action-dialog";
 import { Separator } from "@/components/ui/separator";
@@ -8,6 +8,11 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 
 const viewDetails = {
+  agent: {
+    label: "Agent",
+    description: "Chat with Gmail and Calendar through Corsair MCP",
+    icon: Bot,
+  },
   focus: {
     label: "Focus",
     description: "Inbox and schedule at a glance",

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Inbox, Search, Sparkles, Zap } from "lucide-react";
+import { Bot, CalendarDays, Inbox, Search, Sparkles, Zap } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -23,6 +23,12 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 };
 
 const workspaceItems = [
+  {
+    title: "Agent",
+    view: "agent" as const,
+    icon: <Bot />,
+    description: "Corsair MCP assistant",
+  },
   {
     title: "Focus",
     view: "focus" as const,

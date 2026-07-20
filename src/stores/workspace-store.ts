@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 
-export type WorkspaceView = "focus" | "inbox" | "search" | "calendar";
+export type WorkspaceView = "focus" | "inbox" | "search" | "calendar" | "agent";
 
 export type WorkspaceState = {
   activeView: WorkspaceView;
