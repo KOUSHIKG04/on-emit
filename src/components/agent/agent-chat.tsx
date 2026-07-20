@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldError } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
 
 type Values = { message: string };
 

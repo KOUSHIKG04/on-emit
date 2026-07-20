@@ -14,33 +14,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { api } from "@/trpc/react";
-
-function formatReceivedAt(receivedAt: string | null) {
-  if (!receivedAt) return "";
-
-  const date = new Date(receivedAt);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const now = new Date();
-
-  const isToday =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-
-  if (isToday) {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(date);
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
+import { api } from "@/trpc/client";
+import { ClientDateTime } from "@/components/shared/client-date-time";
 
 export function InboxPanel() {
   const [filter, setFilter] = useState<"all" | "high" | "low">("all");
@@ -173,9 +148,11 @@ export function InboxPanel() {
                         {thread.senderName ?? thread.senderEmail}
                       </p>
 
-                      <time className="text-muted-foreground shrink-0 text-xs">
-                        {formatReceivedAt(thread.receivedAt)}
-                      </time>
+                      <ClientDateTime
+                        className="text-muted-foreground shrink-0 text-xs"
+                        value={thread.receivedAt}
+                        format="inbox"
+                      />
                     </div>
 
                     <p

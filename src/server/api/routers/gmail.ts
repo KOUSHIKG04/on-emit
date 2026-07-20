@@ -173,7 +173,7 @@ async function listThreadSummaries(
         thread.snippet ??
         "No message preview available.",
       receivedAt: toISOString(latestMessage?.internalDate),
-      unread: latestMessage?.labelIds?.includes("UNREAD") ?? false,
+      unread: new Set(latestMessage?.labelIds).has("UNREAD"),
       messageCount: messages.length,
     };
   });
@@ -499,34 +499,39 @@ export const gmailRouter = createTRPCRouter({
           format: "minimal",
         });
 
-        const messageIds = (thread.messages ?? [])
-          .map((message) => message.id)
-          .filter((id): id is string => Boolean(id));
+        const messageIds = (thread.messages ?? []).flatMap((message) =>
+          message.id ? [message.id] : [],
+        );
 
-        const messages = [];
-        for (const messageId of messageIds) {
-          try {
-            /*
-             * Raw returns the original complete RFC/MIME email.
-             */
-            const rawMessage = await tenantCorsair.gmail.api.messages.get({
-              userId: "me",
-              id: messageId,
-              format: "raw",
-            });
+        const loadedMessages = await Promise.all(
+          messageIds.map(async (messageId) => {
+            try {
+              /*
+               * Raw returns the original complete RFC/MIME email.
+               */
+              const rawMessage = await tenantCorsair.gmail.api.messages.get({
+                userId: "me",
+                id: messageId,
+                format: "raw",
+              });
 
-            if (!rawMessage.raw) {
-              throw new Error(
-                `Gmail did not return raw content for message ${messageId}.`,
-              );
+              if (!rawMessage.raw) {
+                throw new Error(
+                  `Gmail did not return raw content for message ${messageId}.`,
+                );
+              }
+
+              const parsed = await parseGmailRaw(rawMessage.raw);
+              return createSafeParsedMessage(messageId, parsed);
+            } catch (error) {
+              console.error(`Failed to load message ${messageId}:`, error);
+              return null;
             }
-
-            const parsed = await parseGmailRaw(rawMessage.raw);
-            messages.push(createSafeParsedMessage(messageId, parsed));
-          } catch (error) {
-            console.error(`Failed to load message ${messageId}:`, error);
-          }
-        }
+          }),
+        );
+        const messages = loadedMessages.filter(
+          (message): message is NonNullable<typeof message> => message !== null,
+        );
 
         const firstMessage = messages[0];
         const unread = (thread.messages ?? []).some((message) =>

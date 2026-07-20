@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsair, getTenantCorsair } from "@/server/corsair";
 
-const attendeeEmail = z.string().trim().email().max(320);
+const attendeeEmail = z.email().trim().max(320);
 
 const createEventInput = z
   .object({
@@ -12,8 +12,8 @@ const createEventInput = z
     description: z.string().max(20_000).default(""),
     location: z.string().trim().max(1_000).default(""),
     attendees: z.array(attendeeEmail).max(100).default([]),
-    startsAt: z.string().datetime(),
-    endsAt: z.string().datetime(),
+    startsAt: z.iso.datetime(),
+    endsAt: z.iso.datetime(),
     timeZone: z.string().trim().min(1).max(100),
   })
   .superRefine((value, context) => {

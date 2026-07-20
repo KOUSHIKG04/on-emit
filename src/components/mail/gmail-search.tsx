@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
+import { ClientDateTime } from "@/components/shared/client-date-time";
 
 const RECENT_SEARCHES_KEY = "on-emit.gmail-recent-searches";
 const suggestions = [
@@ -28,19 +29,6 @@ const suggestions = [
 ] as const;
 
 type SearchValues = { query: string };
-
-function formatReceivedAt(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function loadRecentSearches() {
   try {
@@ -276,9 +264,11 @@ export function GmailSearch() {
                       >
                         {thread.senderName ?? thread.senderEmail}
                       </p>
-                      <time className="text-muted-foreground shrink-0 text-xs">
-                        {formatReceivedAt(thread.receivedAt)}
-                      </time>
+                      <ClientDateTime
+                        className="text-muted-foreground shrink-0 text-xs"
+                        value={thread.receivedAt}
+                        format="search"
+                      />
                     </div>
                     <p className="mt-1 truncate text-sm font-medium">
                       {thread.subject}

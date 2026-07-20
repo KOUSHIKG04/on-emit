@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
 
 type IntegrationEvent = {
   plugin?: string;

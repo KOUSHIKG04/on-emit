@@ -22,7 +22,7 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type RouterOutputs } from "@/trpc/react";
+import { api, type RouterOutputs } from "@/trpc/client";
 
 type CalendarEvent = RouterOutputs["calendar"]["upcoming"][number];
 

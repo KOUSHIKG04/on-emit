@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
-import { api, type RouterOutputs } from "@/trpc/react";
+import { api, type RouterOutputs } from "@/trpc/client";
+import { ClientDateTime } from "@/components/shared/client-date-time";
 
 type ThreadMessage = RouterOutputs["gmail"]["thread"]["messages"][number];
 
@@ -31,23 +32,6 @@ type DisplayAddress = {
   name: string | null;
   email: string;
 };
-
-function formatSentAt(value: string | null) {
-  if (!value) {
-    return "Unknown time";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown time";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) {
@@ -172,9 +156,12 @@ export function ThreadReader() {
                           </p>
                         </div>
 
-                        <time className="text-muted-foreground shrink-0 text-xs">
-                          {formatSentAt(message.sentAt)}
-                        </time>
+                        <ClientDateTime
+                          className="text-muted-foreground shrink-0 text-xs"
+                          value={message.sentAt}
+                          format="sent"
+                          fallback="Unknown time"
+                        />
                       </div>
 
                       {message.to.length > 0 ? (

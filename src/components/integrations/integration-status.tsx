@@ -19,7 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
 
 type ConnectionState = "connected" | "missing_credentials" | "not_connected";
 type ConnectablePlugin = "gmail" | "googlecalendar";

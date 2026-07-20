@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
 
 type CreateEventValues = {
   title: string;

@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
+import { env } from "@/env";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const requestedNext = requestUrl.searchParams.get("next") ?? "/app";
-  const next =
-    requestedNext.startsWith("/") && !requestedNext.startsWith("//")
-      ? requestedNext
-      : "/app";
 
   if (!code) {
     return NextResponse.redirect(
@@ -26,18 +22,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const forwardedHost = request.headers
-    .get("x-forwarded-host")
-    ?.split(",")[0]
-    ?.trim();
-
-  if (process.env.NODE_ENV !== "development" && forwardedHost) {
-    const forwardedProto =
-      request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ??
-      "https";
-
-    return NextResponse.redirect(`${forwardedProto}://${forwardedHost}${next}`);
-  }
-
-  return NextResponse.redirect(new URL(next, requestUrl.origin));
+  // The callback has one fixed destination. Never trust Host, forwarded-host,
+  // or a URL-supplied redirect for an authentication boundary.
+  return NextResponse.redirect(new URL("/app", env.APP_URL));
 }

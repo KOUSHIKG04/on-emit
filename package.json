@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@corsair-dev/cli": "^0.1.19",
     "@corsair-dev/gmail": "^0.1.4",
     "@corsair-dev/googlecalendar": "^0.1.5",
     "@corsair-dev/mcp": "0.1.23",
@@ -40,7 +39,6 @@
     "lucide-react": "^1.24.0",
     "next": "^15.2.3",
     "openai": "^6.48.0",
-    "pg": "^8.22.0",
     "postal-mime": "^2.7.5",
     "postgres": "^3.4.4",
     "react": "^19.0.0",
@@ -62,7 +60,6 @@
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.0.15",
     "@types/node": "^20.14.10",
-    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/sanitize-html": "^2.16.1",

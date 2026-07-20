@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
 
 type ThreadActionsProps = {
   threadId: string;

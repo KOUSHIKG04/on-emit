@@ -229,7 +229,7 @@ export async function getEmailPriorities(
   tenantId: string,
   threads: ThreadForPriority[],
 ) {
-  const ids = threads.map((thread) => thread.id).filter(Boolean);
+  const ids = threads.flatMap((thread) => (thread.id ? [thread.id] : []));
   if (ids.length === 0) return new Map<string, PriorityResult>();
 
   const cached = await db
@@ -268,31 +268,33 @@ export async function getEmailPriorities(
     console.error("OpenAI priority classification failed; using rules:", error);
   }
 
-  for (const thread of missing) {
-    const priority = aiResults.get(thread.id) ?? classifyWithRules(thread);
-    results.set(thread.id, priority);
+  await Promise.all(
+    missing.map(async (thread) => {
+      const priority = aiResults.get(thread.id) ?? classifyWithRules(thread);
+      results.set(thread.id, priority);
 
-    await db
-      .insert(corsairEmailPriorities)
-      .values({
-        tenantId,
-        threadId: thread.id,
-        messageId: thread.latestMessageId ?? "unknown",
-        ...priority,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [
-          corsairEmailPriorities.tenantId,
-          corsairEmailPriorities.threadId,
-        ],
-        set: {
+      await db
+        .insert(corsairEmailPriorities)
+        .values({
+          tenantId,
+          threadId: thread.id,
           messageId: thread.latestMessageId ?? "unknown",
           ...priority,
           updatedAt: new Date(),
-        },
-      });
-  }
+        })
+        .onConflictDoUpdate({
+          target: [
+            corsairEmailPriorities.tenantId,
+            corsairEmailPriorities.threadId,
+          ],
+          set: {
+            messageId: thread.latestMessageId ?? "unknown",
+            ...priority,
+            updatedAt: new Date(),
+          },
+        });
+    }),
+  );
 
   return results;
 }
