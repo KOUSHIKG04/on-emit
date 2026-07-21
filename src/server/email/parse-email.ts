@@ -163,9 +163,23 @@ function insertInlineImages(html: string, attachments: Attachment[]) {
 function sanitizeEmailHtml(html: string) {
   return sanitizeHtml(html, {
     allowedTags: [
-      ...sanitizeHtml.defaults.allowedTags,
+      "html",
+      "head",
+      "body",
+      "style",
+      "title",
+      "meta",
+      "div",
+      "span",
+      "p",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "a",
       "img",
-      // "center",
       "table",
       "thead",
       "tbody",
@@ -173,73 +187,158 @@ function sanitizeEmailHtml(html: string) {
       "tr",
       "th",
       "td",
+      "caption",
+      "col",
+      "colgroup",
+      "ul",
+      "ol",
+      "li",
+      "dl",
+      "dt",
+      "dd",
+      "b",
+      "strong",
+      "i",
+      "em",
+      "u",
+      "s",
+      "strike",
+      "del",
+      "ins",
+      "sub",
+      "sup",
+      "small",
+      "mark",
+      "code",
+      "pre",
+      "blockquote",
+      "hr",
+      "br",
+      "center",
+      "font",
+      "button",
+      "section",
+      "header",
+      "footer",
+      "nav",
+      "main",
+      "article",
+      "aside",
+      "figure",
+      "figcaption",
+      "svg",
+      "path",
+      "rect",
+      "circle",
+      "g",
+      "defs",
+      "use",
+      "line",
+      "polyline",
+      "polygon",
     ],
 
-    /*
-     * Inline styles are important for email layouts.
-     * External CSS requests are blocked again by the iframe CSP.
-     */
     allowedAttributes: {
-      // "*": [
-      //   "class",
-      //   "style",
-      //   "title",
-      //   "dir",
-      //   "align",
-      //   "valign",
-      //   "width",
-      //   "height",
-      //   "role",
-      //   "aria-label",
-      // ],
-
-      a: ["href", "title", "target", "rel"],
-
-      img: ["src", "alt", "title", "width", "height"],
-
-      table: [
+      "*": [
+        "style",
+        "class",
+        "id",
+        "align",
+        "valign",
         "width",
         "height",
+        "bgcolor",
+        "color",
         "border",
         "cellpadding",
         "cellspacing",
-        "align",
-        "valign",
-        "bgcolor",
-        "style",
-      ],
-
-      td: [
-        "width",
-        "height",
         "colspan",
         "rowspan",
-        "align",
-        "valign",
-        "bgcolor",
-        "style",
+        "role",
+        "aria-*",
+        "dir",
+        "lang",
+        "title",
+        "target",
+        "rel",
+        "face",
+        "size",
       ],
-
-      th: [
-        "width",
-        "height",
-        "colspan",
-        "rowspan",
-        "align",
-        "valign",
-        "bgcolor",
-        "style",
-      ],
+      a: ["href", "title", "target", "rel", "name", "id", "style", "class"],
+      img: ["src", "alt", "title", "width", "height", "style", "class", "border"],
+      svg: ["viewbox", "width", "height", "fill", "xmlns", "style", "class"],
+      path: ["d", "fill", "stroke", "stroke-width", "style", "class"],
     },
 
-    /*
-     * Preserve remote image URLs so the reader can offer an explicit
-     * Gmail-style "load images" action. The iframe CSP blocks them by
-     * default and only permits them after the user opts in.
-     */
+    allowedSchemes: ["http", "https", "mailto", "data", "cid", "tel"],
+
     allowedSchemesByTag: {
-      a: ["http", "https", "mailto"],
-      img: ["data", "http", "https"],
+      a: ["http", "https", "mailto", "tel"],
+      img: ["data", "http", "https", "cid"],
+    },
+
+    allowedStyles: {
+      "*": {
+        color: [/.*/],
+        background: [/.*/],
+        "background-color": [/.*/],
+        "background-image": [/.*/],
+        "background-position": [/.*/],
+        "background-repeat": [/.*/],
+        "background-size": [/.*/],
+        "font-size": [/.*/],
+        "font-family": [/.*/],
+        "font-weight": [/.*/],
+        "font-style": [/.*/],
+        "text-align": [/.*/],
+        "text-decoration": [/.*/],
+        "text-transform": [/.*/],
+        "text-indent": [/.*/],
+        "line-height": [/.*/],
+        "letter-spacing": [/.*/],
+        width: [/.*/],
+        height: [/.*/],
+        "min-width": [/.*/],
+        "max-width": [/.*/],
+        "min-height": [/.*/],
+        "max-height": [/.*/],
+        padding: [/.*/],
+        "padding-top": [/.*/],
+        "padding-right": [/.*/],
+        "padding-bottom": [/.*/],
+        "padding-left": [/.*/],
+        margin: [/.*/],
+        "margin-top": [/.*/],
+        "margin-right": [/.*/],
+        "margin-bottom": [/.*/],
+        "margin-left": [/.*/],
+        border: [/.*/],
+        "border-top": [/.*/],
+        "border-right": [/.*/],
+        "border-bottom": [/.*/],
+        "border-left": [/.*/],
+        "border-color": [/.*/],
+        "border-style": [/.*/],
+        "border-width": [/.*/],
+        "border-radius": [/.*/],
+        "border-collapse": [/.*/],
+        "border-spacing": [/.*/],
+        display: [/.*/],
+        "vertical-align": [/.*/],
+        "box-sizing": [/.*/],
+        float: [/.*/],
+        clear: [/.*/],
+        overflow: [/.*/],
+        "white-space": [/.*/],
+        "list-style": [/.*/],
+        "list-style-type": [/.*/],
+        opacity: [/.*/],
+        visibility: [/.*/],
+        gap: [/.*/],
+        "flex-direction": [/.*/],
+        "justify-content": [/.*/],
+        "align-items": [/.*/],
+      },
     },
 
     transformTags: {
@@ -255,6 +354,8 @@ function sanitizeEmailHtml(html: string) {
       },
     },
 
+    nonTextTags: ["script", "textarea"],
+
     disallowedTagsMode: "discard",
   });
 }
@@ -267,19 +368,17 @@ function createHtmlDocument(html: string) {
    */
   const scriptNonce = randomBytes(18).toString("base64");
 
-  return `<!doctype html>
-<html>
-  <head>
+  const baseHead = `
     <meta charset="utf-8" />
 
     <meta
       http-equiv="Content-Security-Policy"
       content="
         default-src 'none';
-        ${EMAIL_IMAGE_SOURCE_DIRECTIVE}
+        img-src data: http: https: cid:;
         style-src 'unsafe-inline';
         script-src 'nonce-${scriptNonce}';
-        font-src data:;
+        font-src data: https: http:;
         connect-src 'none';
         media-src 'none';
         object-src 'none';
@@ -295,209 +394,33 @@ function createHtmlDocument(html: string) {
     />
 
     <style>
-  :root {
-    color-scheme: light dark;
+      html, body {
+        margin: 0;
+        padding: 16px 8px;
+        background-color: #f2f4f8;
+        color: #202124;
+        font-family: Roboto, RobotoDraft, Helvetica, Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
 
-    /*
-     * EmailHtmlFrame replaces these placeholders using
-     * the actual CSS variables from globals.css.
-     */
-    --email-background: __ON_EMIT_BACKGROUND__;
-    --email-foreground: __ON_EMIT_FOREGROUND__;
-    --email-card: __ON_EMIT_CARD__;
-    --email-card-foreground: __ON_EMIT_CARD_FOREGROUND__;
-    --email-primary: __ON_EMIT_PRIMARY__;
-    --email-primary-foreground: __ON_EMIT_PRIMARY_FOREGROUND__;
-    --email-muted: __ON_EMIT_MUTED__;
-    --email-muted-foreground: __ON_EMIT_MUTED_FOREGROUND__;
-    --email-border: __ON_EMIT_BORDER__;
-  }
+      * {
+        box-sizing: border-box;
+      }
 
-  * {
-    box-sizing: border-box;
-    max-width: 100%;
-  }
+      img {
+        max-width: 100%;
+      }
 
-  html,
-  body {
-    width: 100%;
-    min-height: 0;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    overflow-wrap: anywhere;
+      a {
+        color: #1a73e8;
+      }
+    </style>
+  `;
 
-    background: var(--email-background) !important;
-    color: var(--email-foreground) !important;
-
-    font-family:
-      ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      Monaco,
-      Consolas,
-      "Liberation Mono",
-      monospace !important;
-
-    font-size: 14px;
-    line-height: 1.65;
-  }
-
-  body {
-    padding: 20px;
-  }
-
-  /*
-   * Force sender content to inherit our colors and font.
-   */
-  body * {
-    color: inherit !important;
-    font-family: inherit !important;
-    box-shadow: none !important;
-  }
-
-  p {
-    margin: 12px 0;
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    margin: 22px 0 10px;
-    color: var(--email-foreground) !important;
-    font-weight: 650;
-    line-height: 1.3;
-  }
-
-  h1 {
-    font-size: 24px;
-  }
-
-  h2 {
-    font-size: 20px;
-  }
-
-  h3 {
-    font-size: 17px;
-  }
-
-  h4,
-  h5,
-  h6 {
-    font-size: 15px;
-  }
-
-  a {
-    color: var(--email-primary) !important;
-    overflow-wrap: anywhere;
-    font-weight: 500;
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-  }
-
-  img {
-    display: block;
-    max-width: 100% !important;
-    height: auto !important;
-    margin: 14px auto;
-    border-radius: 8px;
-  }
-
-  table {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 16px 0;
-    border: 1px solid var(--email-border) !important;
-    border-collapse: collapse;
-    border-radius: 8px;
-    background: var(--email-card) !important;
-    color: var(--email-card-foreground) !important;
-  }
-
-  td,
-  th {
-    padding: 10px 12px !important;
-    border: 1px solid var(--email-border) !important;
-    background: transparent !important;
-    color: var(--email-card-foreground) !important;
-    overflow-wrap: anywhere;
-    text-align: left;
-  }
-
-  th {
-    background: var(--email-muted) !important;
-    font-weight: 600;
-  }
-
-  blockquote {
-    margin: 16px 0;
-    padding: 12px 16px;
-    border: 1px solid var(--email-border);
-    border-left: 4px solid var(--email-primary);
-    border-radius: 0 8px 8px 0;
-    background: var(--email-muted) !important;
-    color: var(--email-muted-foreground) !important;
-  }
-
-  blockquote * {
-    color: var(--email-muted-foreground) !important;
-  }
-
-  pre {
-    max-width: 100%;
-    margin: 16px 0;
-    padding: 14px;
-    overflow-x: auto;
-    border: 1px solid var(--email-border);
-    border-radius: 8px;
-    background: var(--email-muted) !important;
-    color: var(--email-foreground) !important;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 12px;
-    line-height: 1.55;
-  }
-
-  code {
-    border: 1px solid var(--email-border);
-    border-radius: 4px;
-    background: var(--email-muted) !important;
-    color: var(--email-foreground) !important;
-    padding: 2px 5px;
-    font-size: 12px;
-  }
-
-  pre code {
-    padding: 0;
-    border: 0;
-    background: transparent !important;
-  }
-
-  ul,
-  ol {
-    margin: 12px 0;
-    padding-left: 24px;
-  }
-
-  li {
-    margin: 5px 0;
-  }
-
-  hr {
-    margin: 22px 0;
-    border: 0;
-    border-top: 1px solid var(--email-border);
-  }
-</style>
-  </head>
-
-  <body>
-    ${html}
-
+  const scriptTag = `
     <script nonce="${scriptNonce}">
       (() => {
         const sendHeight = () => {
@@ -515,27 +438,43 @@ function createHtmlDocument(html: string) {
           );
         };
 
-        /*
-         * Report after the first layout.
-         */
         window.addEventListener("load", () => {
           requestAnimationFrame(sendHeight);
         });
 
-        /*
-         * Report again when images, tables or responsive
-         * elements change the document height.
-         */
         const observer = new ResizeObserver(() => {
           requestAnimationFrame(sendHeight);
         });
 
-        observer.observe(document.documentElement);
-        observer.observe(document.body);
+        if (document.documentElement) observer.observe(document.documentElement);
+        if (document.body) observer.observe(document.body);
 
         sendHeight();
       })();
     </script>
+  `;
+
+  const hasHead = /<head[^>]*>/i.test(html);
+  const hasBody = /<body[^>]*>/i.test(html);
+
+  if (hasHead) {
+    let result = html.replace(/<head[^>]*>/i, `$&${baseHead}`);
+    if (hasBody) {
+      result = result.replace(/<\/body>/i, `${scriptTag}</body>`);
+    } else {
+      result += scriptTag;
+    }
+    return result;
+  }
+
+  return `<!doctype html>
+<html>
+  <head>
+    ${baseHead}
+  </head>
+  <body>
+    ${html}
+    ${scriptTag}
   </body>
 </html>`;
 }

@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api } from "@/trpc/client";
@@ -45,7 +46,7 @@ const mailboxTabs = [
 export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const [mode, setMode] = useState<MailboxMode>("inbox");
   const [query, setQuery] = useState("");
-  const [maxResults, setMaxResults] = useState(12);
+  const [maxResults, setMaxResults] = useState(25);
   const searchRef = useRef<HTMLInputElement>(null);
   const sidebar = variant === "sidebar";
 
@@ -59,6 +60,11 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const setLabelFilter = useWorkspaceStore(
     (state) => state.setInboxLabelFilter,
   );
+
+  const stats = api.gmail.stats.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const inbox = api.gmail.inbox.useQuery(
     { maxResults },
@@ -78,7 +84,37 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   );
   const utils = api.useUtils();
   const threadAction = api.gmail.threadAction.useMutation({
-    async onSuccess() {
+    async onMutate(variables) {
+      await utils.gmail.inbox.cancel();
+      await utils.gmail.stats.cancel();
+
+      const previousInbox = utils.gmail.inbox.getData({ maxResults });
+
+      if (previousInbox) {
+        utils.gmail.inbox.setData({ maxResults }, (old) => {
+          if (!old) return old;
+          return old.map((t) => {
+            if (t.id === variables.threadId) {
+              if (variables.action === "mark_read") {
+                return { ...t, unread: false };
+              }
+              if (variables.action === "mark_unread") {
+                return { ...t, unread: true };
+              }
+            }
+            return t;
+          });
+        });
+      }
+
+      return { previousInbox };
+    },
+    onError(_err, _variables, context) {
+      if (context?.previousInbox) {
+        utils.gmail.inbox.setData({ maxResults }, context.previousInbox);
+      }
+    },
+    async onSettled() {
       await Promise.all([
         utils.gmail.inbox.invalidate(),
         utils.gmail.stats.invalidate(),
@@ -127,8 +163,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
 
   function changeMode(nextMode: MailboxMode) {
     setMode(nextMode);
-    setMaxResults(12);
-    setLabelFilter("all");
+    selectThread(null);
   }
 
   return (
@@ -140,11 +175,20 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
       )}
     >
       <CardHeader className={cn("gap-0", sidebar ? "p-0" : "border-b p-0")}>
-        <div className="flex h-16 min-w-0 shrink-0 items-center gap-1 border-b px-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        <div className="flex h-16 w-full max-w-full min-w-0 shrink-0 items-center gap-1.5 border-b px-2.5 sm:px-3">
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1 scrollbar-none">
             {mailboxTabs.map((tab) => {
               const Icon = tab.icon;
               const active = mode === tab.value;
+
+              const count =
+                tab.value === "inbox"
+                  ? stats.data?.total
+                  : tab.value === "priority" && inbox.data
+                    ? inbox.data.filter((t) => t.priority === "high").length
+                    : tab.value === "drafts" && drafts.data
+                      ? drafts.data.length
+                      : null;
 
               return (
                 <button
@@ -152,21 +196,17 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                   type="button"
                   aria-pressed={active}
                   className={cn(
-                    "text-muted-foreground hover:text-foreground flex h-9 min-w-0 shrink items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium transition-colors",
+                    "text-muted-foreground hover:text-foreground flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors whitespace-nowrap",
                     active &&
-                      "bg-background text-foreground shadow-sm ring-1 ring-border",
+                      "bg-background text-foreground shadow-xs ring-1 ring-border",
                   )}
                   onClick={() => changeMode(tab.value)}
                 >
                   <Icon className="size-3.5 shrink-0" />
-                  <span className="truncate">{tab.label}</span>
-                  {tab.value === "priority" && inbox.data ? (
-                    <span className="bg-primary/15 text-primary rounded-full px-1.5 text-[10px]">
-                      {
-                        inbox.data.filter(
-                          (thread) => thread.priority === "high",
-                        ).length
-                      }
+                  <span>{tab.label}</span>
+                  {typeof count === "number" && count > 0 ? (
+                    <span className="bg-primary/15 text-primary rounded-full px-1.5 text-[10px] font-semibold">
+                      {count}
                     </span>
                   ) : null}
                 </button>
@@ -174,85 +214,60 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
             })}
           </div>
 
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            aria-label="Refresh mailbox"
-            disabled={activeQuery.isFetching}
-            onClick={() => void activeQuery.refetch()}
-          >
-            <RefreshCw
-              className={activeQuery.isFetching ? "animate-spin" : undefined}
-            />
-          </Button>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="outline"
-            aria-label="Compose email"
-            onClick={() => setCommandPaletteOpen(true)}
-          >
-            <SquarePen />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label="Refresh mailbox"
+              disabled={activeQuery.isFetching}
+              onClick={() => void activeQuery.refetch()}
+            >
+              <RefreshCw
+                className={activeQuery.isFetching ? "animate-spin" : undefined}
+              />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              aria-label="Compose email"
+              onClick={() => setCommandPaletteOpen(true)}
+            >
+              <SquarePen />
+            </Button>
+          </div>
         </div>
 
-        <div className="space-y-2.5 p-3">
-          <label className="focus-within:border-ring focus-within:ring-ring/30 flex h-10 items-center gap-2 rounded-lg border px-3 transition-shadow focus-within:ring-2">
-            <Search className="text-muted-foreground size-4 shrink-0" />
+        <div className="space-y-2 p-2.5 sm:p-3">
+          <label className="focus-within:border-ring focus-within:ring-ring/30 flex h-9 w-full items-center gap-1.5 rounded-lg border px-2.5 transition-shadow focus-within:ring-2">
+            <Search className="text-muted-foreground size-3.5 shrink-0" />
             <input
               ref={searchRef}
               type="search"
               value={query}
-              placeholder="Search sender, subject, or message"
-              className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+              placeholder={sidebar ? "Search mail..." : "Search sender, subject, or message"}
+              className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-xs outline-none"
               onChange={(event) => setQuery(event.target.value)}
             />
-            <kbd className="text-muted-foreground rounded border px-1.5 py-0.5 font-mono text-[10px]">
+            <kbd className="text-muted-foreground rounded border px-1 py-0.5 font-mono text-[9px]">
               /
             </kbd>
           </label>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 w-full justify-start px-3 font-normal"
-                  aria-label="Filter messages"
-                />
+          <div className="border-border/60 bg-muted/20 flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+              <Mail className="text-muted-foreground size-3.5 shrink-0" />
+              Unread only
+            </span>
+            <Switch
+              checked={labelFilter === "unread"}
+              onCheckedChange={(checked) =>
+                setLabelFilter(checked ? "unread" : "all")
               }
-            >
-              <Tag className="text-muted-foreground size-3.5" />
-              <span className="min-w-0 flex-1 truncate text-left">
-                {labelFilter === "all"
-                  ? "All labels"
-                  : labelFilter === "unread"
-                    ? "Unread"
-                    : "Read"}
-              </span>
-              <ChevronDown className="text-muted-foreground size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuRadioGroup
-                value={labelFilter}
-                onValueChange={(value) =>
-                  setLabelFilter(value as "all" | "unread" | "read")
-                }
-              >
-                <DropdownMenuRadioItem value="all">
-                  All labels
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="unread">
-                  Unread
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="read">
-                  Read
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              aria-label="Filter unread messages"
+            />
+          </div>
         </div>
       </CardHeader>
 
@@ -312,30 +327,35 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                 <div
                   key={thread.id}
                   className={cn(
-                    "group/mail-row hover:bg-muted/50 relative flex items-center overflow-hidden rounded-xl transition-colors",
-                    selected && "bg-muted ring-1 ring-border",
+                    "group/mail-row hover:bg-muted/50 flex items-center justify-between gap-2 overflow-hidden rounded-xl border border-transparent p-2.5 transition-colors",
+                    selected && "bg-muted ring-1 ring-border border-border",
                   )}
                 >
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 gap-2.5 px-3 py-3 text-left"
+                    className="flex min-w-0 flex-1 flex-col text-left outline-none"
                     onClick={() => {
                       selectThread(thread.id);
                       setActiveView("inbox");
+                      if (thread.unread) {
+                        threadAction.mutate({
+                          threadId: thread.id,
+                          action: "mark_read",
+                        });
+                      }
                     }}
                   >
-                    <span className="flex w-2 shrink-0 justify-center pt-1.5">
-                      {thread.unread ? (
-                        <span className="bg-primary size-2 rounded-full" />
-                      ) : null}
-                    </span>
-
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {thread.unread ? (
+                          <span className="bg-primary size-2 shrink-0 rounded-full" />
+                        ) : null}
                         <span
                           className={cn(
                             "truncate text-sm",
-                            thread.unread ? "font-semibold" : "font-medium",
+                            thread.unread
+                              ? "font-semibold text-foreground"
+                              : "font-medium text-foreground/90",
                           )}
                         >
                           {thread.senderName ?? thread.senderEmail}
@@ -343,40 +363,46 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                         {thread.priority === "high" ? (
                           <Sparkles className="text-primary size-3 shrink-0" />
                         ) : null}
-                        <ClientDateTime
-                          className="text-muted-foreground ml-auto max-w-20 shrink-0 truncate text-right text-[11px]"
-                          value={thread.receivedAt}
-                          format="inbox"
-                        />
-                      </span>
+                      </div>
 
-                      <span
-                        className={cn(
-                          "mt-1 block truncate text-sm",
-                          thread.unread && "font-semibold",
-                        )}
-                      >
-                        {thread.subject}
-                      </span>
-                      <span className="text-muted-foreground mt-1 block truncate text-xs">
-                        {thread.snippet}
-                      </span>
-                      {thread.messageCount > 1 ? (
-                        <span className="text-muted-foreground mt-1.5 block text-[11px]">
-                          {thread.messageCount} messages
-                        </span>
-                      ) : null}
+                      <ClientDateTime
+                        className="text-muted-foreground ml-auto shrink-0 text-right text-[11px]"
+                        value={thread.receivedAt}
+                        format="inbox"
+                      />
+                    </div>
+
+                    <span
+                      className={cn(
+                        "mt-1 block truncate text-sm",
+                        thread.unread
+                          ? "font-semibold text-foreground"
+                          : "font-medium text-foreground/80",
+                      )}
+                    >
+                      {thread.subject}
                     </span>
+
+                    <span className="text-muted-foreground mt-1 block truncate text-xs">
+                      {thread.snippet}
+                    </span>
+
+                    {thread.messageCount > 1 ? (
+                      <span className="text-muted-foreground/80 mt-1.5 block text-[11px]">
+                        {thread.messageCount} messages
+                      </span>
+                    ) : null}
                   </button>
 
                   {mode !== "drafts" ? (
-                    <div className="bg-muted/95 absolute right-2 flex translate-x-1 items-center gap-1 rounded-lg p-1 opacity-0 shadow-sm transition-all group-hover/mail-row:translate-x-0 group-hover/mail-row:opacity-100 group-focus-within/mail-row:translate-x-0 group-focus-within/mail-row:opacity-100">
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         type="button"
                         size="icon-xs"
                         variant="ghost"
                         disabled={actionPending}
                         aria-label="Archive conversation"
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted/80"
                         onClick={() =>
                           threadAction.mutate({
                             threadId: thread.id,
@@ -394,6 +420,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                         aria-label={
                           thread.unread ? "Mark as read" : "Mark as unread"
                         }
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted/80"
                         onClick={() =>
                           threadAction.mutate({
                             threadId: thread.id,
@@ -419,11 +446,13 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
           type="button"
           variant="outline"
           className="w-full border-dashed"
-          disabled={!canLoadMore || maxResults >= 50 || activeQuery.isFetching}
-          onClick={() => setMaxResults((current) => Math.min(50, current + 12))}
+          disabled={!canLoadMore || maxResults >= 500 || activeQuery.isFetching}
+          onClick={() => setMaxResults((current) => Math.min(500, current + 50))}
         >
           <CheckSquare2 />
-          {canLoadMore && maxResults < 50 ? "Load more mail" : "All mail loaded"}
+          {canLoadMore && maxResults < 500
+            ? `Load more mail (${threads?.length ?? 0} shown)`
+            : "All mail loaded"}
         </Button>
       </div>
     </Card>

@@ -1,5 +1,6 @@
 export {
   IconAdjustmentsHorizontal as Settings2,
+  IconAdjustmentsHorizontal as SlidersHorizontal,
   IconAlertCircle as AlertCircle,
   IconAlertCircle as CircleAlert,
   IconArchive as Archive,
