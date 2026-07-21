@@ -1,28 +1,29 @@
-import { IntegrationStatus } from "@/components/integrations/integration-status";
+import { AgentPanel } from "@/components/agent/agent-panel";
 import { WorkspaceContent } from "@/components/workspace/workspace-content";
+import { getCachedAuth } from "@/app/app/cached-auth";
 
-export default function AppPage() {
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+export default async function AppPage() {
+  const { claims } = await getCachedAuth();
+  const claimValues = asRecord(claims);
+  const metadata = asRecord(claimValues.user_metadata);
+  const email =
+    typeof claimValues.email === "string" ? claimValues.email : "";
+  const userName =
+    (typeof metadata.full_name === "string" && metadata.full_name) ||
+    (typeof metadata.name === "string" && metadata.name) ||
+    email.split("@")[0] ||
+    "there";
+
   return (
-    <main className="flex-1 p-4 md:p-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="flex flex-col gap-2">
-          <p className="text-primary text-xs font-semibold tracking-[0.18em] uppercase">
-            Live workspace
-          </p>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-              Inbox and schedule, in one place
-            </h1>
-            <p className="text-muted-foreground mt-1 max-w-2xl text-sm md:text-base">
-              Work through Gmail conversations and Google Calendar events
-              without leaving your command center.
-            </p>
-          </div>
-        </section>
-
-        <IntegrationStatus />
-        <WorkspaceContent />
-      </div>
+    <main className="grid min-h-0 flex-1 overflow-auto">
+      <WorkspaceContent userName={userName} />
+      <AgentPanel />
     </main>
   );
 }

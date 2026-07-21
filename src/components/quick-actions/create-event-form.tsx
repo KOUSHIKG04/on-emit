@@ -7,14 +7,14 @@ import {
   CheckCircle2,
   ExternalLink,
   LoaderCircle,
-} from "lucide-react";
+} from "@/components/icons";
 
 import { parseEmailList } from "@/components/quick-actions/form-utils";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
 
 type CreateEventValues = {
   title: string;
@@ -79,7 +79,10 @@ export function CreateEventForm() {
         location: "",
         description: "",
       });
-      await utils.calendar.upcoming.invalidate();
+      await Promise.all([
+        utils.calendar.upcoming.invalidate(),
+        utils.calendar.range.invalidate(),
+      ]);
     },
   });
 

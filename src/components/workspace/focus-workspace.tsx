@@ -1,11 +1,5 @@
-import { UpcomingEvents } from "@/components/calendar/upcoming-events";
-import { InboxPanel } from "@/components/mail/inbox-panel";
+import { DashboardOverview } from "@/components/workspace/dashboard-overview";
 
-export function FocusWorkspace() {
-  return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)]">
-      <InboxPanel />
-      <UpcomingEvents />
-    </div>
-  );
+export function FocusWorkspace({ userName }: { userName: string }) {
+  return <DashboardOverview userName={userName} />;
 }

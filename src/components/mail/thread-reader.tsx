@@ -1,9 +1,20 @@
 "use client";
 
-import { AlertCircle, MailOpen, Paperclip, UserRound } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertCircle,
+  ImageIcon,
+  MailOpen,
+  Paperclip,
+  ShieldCheck,
+  UserRound,
+  X,
+} from "@/components/icons";
 
 import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
 import { EmailMarkdown } from "@/components/mail/email-markdown";
+import { ThreadActions } from "@/components/mail/thread-actions";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -13,29 +24,15 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
-import { api } from "@/trpc/react";
+import { api, type RouterOutputs } from "@/trpc/client";
+import { ClientDateTime } from "@/components/shared/client-date-time";
+
+type ThreadMessage = RouterOutputs["gmail"]["thread"]["messages"][number];
 
 type DisplayAddress = {
   name: string | null;
   email: string;
 };
-
-function formatSentAt(value: string | null) {
-  if (!value) {
-    return "Unknown time";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown time";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
 
 function formatFileSize(bytes: number) {
   if (bytes < 1024) {
@@ -61,8 +58,15 @@ function formatAddresses(addresses: DisplayAddress[]) {
     .join(", ");
 }
 
-export function ThreadReader() {
-  const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+export function ThreadReader({
+  threadId,
+  onClose,
+}: {
+  threadId?: string | null;
+  onClose?: () => void;
+} = {}) {
+  const storedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+  const selectedThreadId = threadId === undefined ? storedThreadId : threadId;
 
   const {
     data: thread,
@@ -118,12 +122,35 @@ export function ThreadReader() {
       {thread ? (
         <>
           <CardHeader className="border-b">
-            <CardTitle className="text-xl">{thread.subject}</CardTitle>
+            <div className="flex items-start justify-between gap-4">
+              <CardTitle className="min-w-0 text-xl">
+                {thread.subject}
+              </CardTitle>
+              {onClose ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0"
+                  aria-label="Close conversation"
+                  onClick={onClose}
+                >
+                  <X />
+                </Button>
+              ) : null}
+            </div>
 
             <CardDescription>
               {thread.messageCount} message
               {thread.messageCount === 1 ? "" : "s"} in this conversation
             </CardDescription>
+
+            <ThreadActions
+              threadId={thread.id}
+              messageId={thread.messages.at(-1)?.id ?? null}
+              unread={thread.unread}
+              {...(onClose ? { onArchived: onClose } : {})}
+            />
           </CardHeader>
 
           <CardContent className="max-w-full min-w-0 space-y-5 overflow-x-hidden">
@@ -154,9 +181,12 @@ export function ThreadReader() {
                           </p>
                         </div>
 
-                        <time className="text-muted-foreground shrink-0 text-xs">
-                          {formatSentAt(message.sentAt)}
-                        </time>
+                        <ClientDateTime
+                          className="text-muted-foreground shrink-0 text-xs"
+                          value={message.sentAt}
+                          format="sent"
+                          fallback="Unknown time"
+                        />
                       </div>
 
                       {message.to.length > 0 ? (
@@ -173,20 +203,7 @@ export function ThreadReader() {
                     </div>
                   </header>
 
-                  <div className="mt-5 max-w-full min-w-0">
-                    {message.htmlDocument ? (
-                      <EmailHtmlFrame
-                        htmlDocument={message.htmlDocument}
-                        title={message.subject}
-                      />
-                    ) : message.text ? (
-                      <EmailMarkdown body={message.text} />
-                    ) : (
-                      <p className="text-muted-foreground text-sm">
-                        This email did not contain a readable body.
-                      </p>
-                    )}
-                  </div>
+                  <MessageBody message={message} />
 
                   {regularAttachments.length > 0 ? (
                     <div className="border-border mt-5 border-t pt-4">
@@ -223,6 +240,55 @@ export function ThreadReader() {
         </>
       ) : null}
     </Card>
+  );
+}
+
+function MessageBody({ message }: { message: ThreadMessage }) {
+  const [allowRemoteImages, setAllowRemoteImages] = useState(false);
+  const hasRemoteImages = message.htmlDocument
+    ? /<img[^>]+src=["']https?:\/\//i.test(message.htmlDocument)
+    : false;
+
+  return (
+    <div className="mt-5 max-w-full min-w-0">
+      {message.htmlDocument ? (
+        <>
+          {hasRemoteImages && !allowRemoteImages ? (
+            <div className="border-border bg-muted/40 mb-3 flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-2">
+                <ShieldCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                <p className="text-muted-foreground text-xs leading-5">
+                  Remote images are hidden to reduce tracking. Embedded images
+                  are still shown.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => setAllowRemoteImages(true)}
+              >
+                <ImageIcon />
+                Load images
+              </Button>
+            </div>
+          ) : null}
+
+          <EmailHtmlFrame
+            htmlDocument={message.htmlDocument}
+            title={message.subject}
+            allowRemoteImages={allowRemoteImages}
+          />
+        </>
+      ) : message.text ? (
+        <EmailMarkdown body={message.text} />
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          This email did not contain a readable body.
+        </p>
+      )}
+    </div>
   );
 }
 

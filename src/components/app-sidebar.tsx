@@ -1,18 +1,35 @@
 "use client";
 
-import { CalendarDays, Inbox, Sparkles, Zap } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import type { TablerIcon } from "@/components/icons";
+import {
+  Bot,
+  CalendarDays,
+  Inbox,
+  Search,
+  Settings2,
+  Sparkles,
+  Zap,
+} from "@/components/icons";
 
-import { NavMain } from "@/components/nav-main";
+import { CalendarSidebar } from "@/components/calendar/calendar-sidebar";
+import { InboxPanel } from "@/components/mail/inbox-panel";
 import { NavUser } from "@/components/nav-user";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
+import { useWorkspaceStore } from "@/providers/workspace-store-provider";
+import type { WorkspaceView } from "@/stores/workspace-store";
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user: {
@@ -22,58 +39,195 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   };
 };
 
-const workspaceItems = [
-  {
-    title: "Focus",
-    view: "focus" as const,
-    icon: <Sparkles />,
-    description: "Inbox and schedule",
-  },
-  {
-    title: "Inbox",
-    view: "inbox" as const,
-    icon: <Inbox />,
-    description: "Gmail conversations",
-  },
-  {
-    title: "Calendar",
-    view: "calendar" as const,
-    icon: <CalendarDays />,
-    description: "Upcoming events",
-  },
+type WorkspaceItem = {
+  title: string;
+  view: WorkspaceView;
+  icon: TablerIcon;
+};
+
+const workspaceItems: WorkspaceItem[] = [
+  { title: "Focus", view: "focus", icon: Sparkles },
+  { title: "Inbox", view: "inbox", icon: Inbox },
+  { title: "Calendar", view: "calendar", icon: CalendarDays },
+  { title: "Search", view: "search", icon: Search },
+  { title: "Agent", view: "agent", icon: Bot },
+  { title: "Settings", view: "settings", icon: Settings2 },
 ];
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
+  const activeView = useWorkspaceStore((state) => state.activeView);
+  const setActiveView = useWorkspaceStore((state) => state.setActiveView);
+  const setAgentPanelOpen = useWorkspaceStore(
+    (state) => state.setAgentPanelOpen,
+  );
+  const agentPanelOpen = useWorkspaceStore((state) => state.agentPanelOpen);
+  const { open, setOpen, setOpenMobile } = useSidebar();
+
+  useEffect(() => {
+    setOpen(activeView === "inbox" || activeView === "calendar");
+  }, [activeView, setOpen]);
+
+  function openView(view: WorkspaceView) {
+    if (view === "agent") {
+      setOpen(false);
+      setOpenMobile(false);
+      setAgentPanelOpen(true);
+      return;
+    }
+
+    setActiveView(view);
+    setOpen(view === "inbox" || view === "calendar");
+    setOpenMobile(false);
+  }
+
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex h-12 items-center gap-2 overflow-hidden rounded-lg px-2">
-              <div className="bg-sidebar-primary text-sidebar-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                <Zap className="size-4" />
-              </div>
-
-              <div className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-semibold">On Emit</span>
-                <span className="text-sidebar-foreground/60 truncate text-xs">
-                  Mail command center
+    <Sidebar
+      collapsible="icon"
+      className="overflow-hidden *:data-[sidebar=sidebar]:flex-row"
+      {...props}
+    >
+      <Sidebar
+        collapsible="none"
+        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
+      >
+        <SidebarHeader className="h-16 shrink-0 justify-center border-b">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                className="justify-center md:h-10 md:p-0 group-data-[collapsible=icon]:w-full!"
+                tooltip={{ children: "On Emit", hidden: false }}
+                onClick={() => openView("focus")}
+              >
+                <span className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                  <Zap className="size-4" />
                 </span>
-              </div>
-            </div>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
+                <span className="sr-only">Open On Emit focus workspace</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-      <SidebarContent>
-        <NavMain items={workspaceItems} />
-      </SidebarContent>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent className="px-1.5 md:px-0">
+              <SidebarMenu>
+                {workspaceItems.map((item) => {
+                  const Icon = item.icon;
+                  const isAgent = item.view === "agent";
 
-      <SidebarFooter>
-        <NavUser user={user} />
-      </SidebarFooter>
+                  return (
+                    <SidebarMenuItem key={item.view}>
+                      <SidebarMenuButton
+                        type="button"
+                        aria-label={item.title}
+                        tooltip={{ children: item.title, hidden: false }}
+                        isActive={
+                          isAgent ? agentPanelOpen : activeView === item.view
+                        }
+                        className="justify-center px-0 group-data-[collapsible=icon]:w-full!"
+                        onClick={() => openView(item.view)}
+                      >
+                        <Icon />
+                        <span className="sr-only">{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <SidebarRail />
+        <SidebarFooter>
+          <NavUser user={user} compact />
+        </SidebarFooter>
+      </Sidebar>
+
+      <Sidebar
+        collapsible="none"
+        className="hidden min-w-0 flex-1 overflow-hidden md:flex"
+      >
+        {activeView === "inbox" ? <InboxPanel variant="sidebar" /> : null}
+        {activeView === "calendar" ? (
+          <CalendarSidebar accountEmail={user.email} />
+        ) : null}
+      </Sidebar>
+
+      {open && (activeView === "inbox" || activeView === "calendar") ? (
+        <SidebarResizeHandle />
+      ) : null}
     </Sidebar>
+  );
+}
+
+const MIN_SIDEBAR_WIDTH = 384;
+const DEFAULT_SIDEBAR_WIDTH = 448;
+const MAX_SIDEBAR_WIDTH = 640;
+
+function SidebarResizeHandle() {
+  const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
+  const setSidebarWidth = useWorkspaceStore((state) => state.setSidebarWidth);
+  const [resizing, setResizing] = useState(false);
+  const dragStart = useRef({ pointerX: 0, width: sidebarWidth });
+
+  function clampWidth(width: number) {
+    const viewportMaximum =
+      typeof window === "undefined"
+        ? MAX_SIDEBAR_WIDTH
+        : Math.floor(window.innerWidth * 0.62);
+
+    return Math.min(
+      Math.max(MIN_SIDEBAR_WIDTH, viewportMaximum),
+      MAX_SIDEBAR_WIDTH,
+      Math.max(MIN_SIDEBAR_WIDTH, width),
+    );
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-label="Resize sidebar"
+      aria-orientation="vertical"
+      aria-valuemin={MIN_SIDEBAR_WIDTH}
+      aria-valuemax={MAX_SIDEBAR_WIDTH}
+      aria-valuenow={sidebarWidth}
+      tabIndex={0}
+      className={cn(
+        "group/resize absolute inset-y-0 right-0 z-50 hidden w-2 cursor-col-resize touch-none md:block",
+        resizing && "bg-primary/10",
+      )}
+      onDoubleClick={() => setSidebarWidth(DEFAULT_SIDEBAR_WIDTH)}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+        event.preventDefault();
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        setSidebarWidth(clampWidth(sidebarWidth + direction * 16));
+      }}
+      onPointerDown={(event) => {
+        dragStart.current = {
+          pointerX: event.clientX,
+          width: sidebarWidth,
+        };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        setResizing(true);
+      }}
+      onPointerMove={(event) => {
+        if (!resizing) return;
+
+        const delta = event.clientX - dragStart.current.pointerX;
+        setSidebarWidth(clampWidth(dragStart.current.width + delta));
+      }}
+      onPointerUp={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        setResizing(false);
+      }}
+      onPointerCancel={() => setResizing(false)}
+    >
+      <span className="bg-border group-hover/resize:bg-primary group-focus/resize:bg-primary absolute inset-y-0 right-0 w-px transition-colors" />
+    </div>
   );
 }

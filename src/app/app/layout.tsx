@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset } from "@/components/ui/sidebar";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import { WorkspaceStoreProvider } from "@/providers/workspace-store-provider";
+import { RealtimeSync } from "@/components/realtime/realtime-sync";
+import { WorkspaceSidebarProvider } from "@/components/workspace/workspace-sidebar-provider";
 import { getCachedAuth } from "./cached-auth";
 
 type AppLayoutProps = {
@@ -40,7 +42,8 @@ export default async function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <WorkspaceStoreProvider>
-      <SidebarProvider>
+      <RealtimeSync />
+      <WorkspaceSidebarProvider>
         <AppSidebar
           user={{
             name,
@@ -53,7 +56,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
           <WorkspaceHeader />
           {children}
         </SidebarInset>
-      </SidebarProvider>
+      </WorkspaceSidebarProvider>
     </WorkspaceStoreProvider>
   );
 }

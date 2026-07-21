@@ -6,6 +6,8 @@ import PostalMime, {
 import sanitizeHtml from "sanitize-html";
 import { randomBytes } from "node:crypto";
 
+import { EMAIL_IMAGE_SOURCE_DIRECTIVE } from "@/lib/email-content-security-policy";
+
 export type SafeEmailAddress = {
   name: string | null;
   email: string;
@@ -231,10 +233,9 @@ function sanitizeEmailHtml(html: string) {
     },
 
     /*
-     * Only embedded data images are allowed.
-     *
-     * Remote http/https image URLs are removed to prevent
-     * email tracking pixels from learning the user's IP.
+     * Preserve remote image URLs so the reader can offer an explicit
+     * Gmail-style "load images" action. The iframe CSP blocks them by
+     * default and only permits them after the user opts in.
      */
     allowedSchemesByTag: {
       a: ["http", "https", "mailto"],
@@ -275,7 +276,7 @@ function createHtmlDocument(html: string) {
       http-equiv="Content-Security-Policy"
       content="
         default-src 'none';
-        img-src data: https: http:;
+        ${EMAIL_IMAGE_SOURCE_DIRECTIVE}
         style-src 'unsafe-inline';
         script-src 'nonce-${scriptNonce}';
         font-src data:;

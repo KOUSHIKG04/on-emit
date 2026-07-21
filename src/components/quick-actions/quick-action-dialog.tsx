@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CalendarPlus, Command, MailPlus, Sparkles } from "lucide-react";
+import { useEffect } from "react";
+import { CalendarPlus, Command, MailPlus, Sparkles } from "@/components/icons";
 
 import { CreateEventForm } from "@/components/quick-actions/create-event-form";
 import { SendEmailForm } from "@/components/quick-actions/send-email-form";
@@ -14,8 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-
-type QuickActionMode = "email" | "event";
+import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 
 const actionModes = [
   {
@@ -33,8 +32,10 @@ const actionModes = [
 ];
 
 export function QuickActionDialog() {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<QuickActionMode>("email");
+  const open = useWorkspaceStore((state) => state.commandPaletteOpen);
+  const setOpen = useWorkspaceStore((state) => state.setCommandPaletteOpen);
+  const mode = useWorkspaceStore((state) => state.quickActionMode);
+  const setMode = useWorkspaceStore((state) => state.setQuickActionMode);
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -46,7 +47,7 @@ export function QuickActionDialog() {
 
     document.addEventListener("keydown", handleShortcut);
     return () => document.removeEventListener("keydown", handleShortcut);
-  }, []);
+  }, [setOpen]);
 
   return (
     <>

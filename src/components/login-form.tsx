@@ -1,4 +1,4 @@
-import { CalendarDays, Command, Mail, Sparkles, Zap } from "lucide-react";
+import { CalendarDays, Command, Mail, Sparkles, Zap } from "@/components/icons";
 
 import { LoginForm as GoogleLoginForm } from "@/app/login/login-form";
 import { Card, CardContent } from "@/components/ui/card";

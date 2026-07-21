@@ -3,10 +3,20 @@ import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsair } from "@/server/corsair";
+import { env } from "@/env";
+import { createWebhookTenantToken } from "@/server/webhooks/tenant-token";
 
 const connectablePlugin = z.enum(["gmail", "googlecalendar"]);
 
 export const integrationsRouter = createTRPCRouter({
+  webhookConfig: protectedProcedure.query(({ ctx }) => {
+    const url = new URL("/api/webhooks/corsair", env.APP_URL);
+    url.searchParams.set("tenantId", ctx.userId);
+    url.searchParams.set("token", createWebhookTenantToken(ctx.userId));
+
+    return { url: url.toString() };
+  }),
+
   status: protectedProcedure.query(async ({ ctx }) => {
     const status = await corsair.manage.connectionStatus.get({
       tenantId: ctx.userId,

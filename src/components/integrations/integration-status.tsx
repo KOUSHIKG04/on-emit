@@ -8,7 +8,8 @@ import {
   LoaderCircle,
   Mail,
   RefreshCw,
-} from "lucide-react";
+  Copy,
+} from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { api } from "@/trpc/react";
+import { api } from "@/trpc/client";
+import { cn } from "@/lib/utils";
 
 type ConnectionState = "connected" | "missing_credentials" | "not_connected";
 type ConnectablePlugin = "gmail" | "googlecalendar";
@@ -31,13 +33,16 @@ type Service = {
   state: ConnectionState;
 };
 
-export function IntegrationStatus() {
+export function IntegrationStatus({ className }: { className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [redirectingPlugin, setRedirectingPlugin] =
     useState<ConnectablePlugin | null>(null);
 
   const statusQuery = api.integrations.status.useQuery(undefined, {
     refetchOnWindowFocus: true,
   });
+  const webhookQuery = api.integrations.webhookConfig.useQuery();
 
   const connectMutation = api.integrations.connect.useMutation({
     onSuccess(data, variables) {
@@ -80,7 +85,7 @@ export function IntegrationStatus() {
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div className="space-y-1.5">
           <CardTitle>Connected services</CardTitle>
@@ -144,6 +149,69 @@ export function IntegrationStatus() {
             onConnect={() => connect(service.plugin)}
           />
         ))}
+
+        {webhookQuery.isLoading ? (
+          <div className="text-muted-foreground flex items-center gap-2 rounded-xl border p-4 text-sm">
+            <LoaderCircle className="size-4 animate-spin" />
+            Preparing protected webhook endpoint...
+          </div>
+        ) : null}
+
+        {webhookQuery.error ? (
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
+          >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" />
+            {webhookQuery.error.message}
+          </div>
+        ) : null}
+
+        {webhookQuery.data ? (
+          <div className="bg-muted/40 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Realtime webhook endpoint</p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Add this protected URL to the Corsair Gmail and Calendar webhook
+                setup.
+              </p>
+              <code className="text-muted-foreground mt-2 block max-w-full truncate text-xs">
+                {webhookQuery.data.url}
+              </code>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(webhookQuery.data.url);
+                  setCopyError(null);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 2_000);
+                } catch {
+                  setCopied(false);
+                  setCopyError(
+                    "Could not copy the webhook URL. Select and copy it manually.",
+                  );
+                }
+              }}
+            >
+              <Copy />
+              {copied ? "Copied" : "Copy URL"}
+            </Button>
+          </div>
+        ) : null}
+
+        {copyError ? (
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
+          >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" />
+            {copyError}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

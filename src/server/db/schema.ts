@@ -1,4 +1,11 @@
-import { pgTable, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import {
+  index,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 export const corsairIntegrations = pgTable("corsair_integrations", {
   id: text("id").primaryKey(),
@@ -75,4 +82,30 @@ export const corsairEvents = pgTable(
     status: text("status"),
   },
   (table) => [index("corsair_events_account_id_idx").on(table.accountId)],
+);
+
+export const corsairEmailPriorities = pgTable(
+  "corsair_email_priorities",
+  {
+    tenantId: text("tenant_id").notNull(),
+    threadId: text("thread_id").notNull(),
+    messageId: text("message_id").notNull(),
+    priority: text("priority").notNull(),
+    reason: text("reason").notNull(),
+    source: text("source").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tenantId, table.threadId] }),
+    index("corsair_email_priorities_tenant_idx").on(table.tenantId),
+    index("corsair_email_priorities_priority_idx").on(
+      table.tenantId,
+      table.priority,
+    ),
+  ],
 );

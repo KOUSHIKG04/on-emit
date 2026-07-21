@@ -15,6 +15,13 @@
       "when": 1784092318551,
       "tag": "0001_nervous_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784531409840,
+      "tag": "0002_confused_zeigeist",
+      "breakpoints": true
     }
   ]
 }

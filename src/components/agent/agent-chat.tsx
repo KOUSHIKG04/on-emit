@@ -1,0 +1,109 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Bot, LoaderCircle, Send, ShieldCheck } from "@/components/icons";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Field, FieldError } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/trpc/client";
+import { cn } from "@/lib/utils";
+import { useWorkspaceStore } from "@/providers/workspace-store-provider";
+
+type Values = { message: string };
+
+export function AgentChat({ embedded = false }: { embedded?: boolean }) {
+  const [reply, setReply] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const { register, handleSubmit, formState, setValue } = useForm<Values>();
+  const agentDraft = useWorkspaceStore((state) => state.agentDraft);
+  const setAgentDraft = useWorkspaceStore((state) => state.setAgentDraft);
+  const chat = api.agent.chat.useMutation({
+    onSuccess: (data, variables) => {
+      setReply(data.reply);
+      if (variables.confirmed) setPendingMessage(null);
+    },
+  });
+
+  useEffect(() => {
+    if (!agentDraft) return;
+
+    setValue("message", agentDraft, { shouldDirty: true });
+    setAgentDraft("");
+  }, [agentDraft, setAgentDraft, setValue]);
+
+  async function submit(values: Values, confirmed = false) {
+    setPendingMessage(values.message);
+    setReply(null);
+    try {
+      await chat.mutateAsync({ message: values.message, confirmed });
+    } catch {}
+  }
+
+  return (
+    <Card
+      className={cn(
+        "mx-auto w-full max-w-3xl",
+        embedded && "max-w-none rounded-none bg-transparent shadow-none ring-0",
+      )}
+    >
+      {!embedded ? (
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot /> Corsair agent
+          </CardTitle>
+          <CardDescription>
+            Ask one workflow to search mail, prepare an email, or schedule a
+            meeting. Writes require confirmation.
+          </CardDescription>
+        </CardHeader>
+      ) : null}
+      <CardContent className="space-y-5">
+        {reply ? (
+          <div className="bg-muted rounded-xl p-4 text-sm whitespace-pre-wrap">
+            {reply}
+          </div>
+        ) : null}
+        {chat.error ? <FieldError>{chat.error.message}</FieldError> : null}
+        <form className="space-y-3" onSubmit={handleSubmit((v) => submit(v))}>
+          <Field data-invalid={Boolean(formState.errors.message)}>
+            <Textarea
+              className="min-h-32"
+              placeholder="Send a calendar invite to friend@example.com next Thursday at 9 AM, then email them."
+              {...register("message", { required: "Enter a request." })}
+            />
+            <FieldError errors={[formState.errors.message]} />
+          </Field>
+          <div className="flex flex-wrap justify-end gap-2">
+            {pendingMessage && reply ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={chat.isPending}
+                onClick={() => void submit({ message: pendingMessage }, true)}
+              >
+                <ShieldCheck /> Confirm and execute
+              </Button>
+            ) : null}
+            <Button type="submit" disabled={chat.isPending}>
+              {chat.isPending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <Send />
+              )}
+              Preview with agent
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}

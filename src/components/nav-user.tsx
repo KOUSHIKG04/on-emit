@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
+import { ChevronsUpDown, LogOut, UserRound } from "@/components/icons";
 
 import { signOut } from "@/app/app/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,6 +25,7 @@ type NavUserProps = {
     email: string;
     avatar?: string;
   };
+  compact?: boolean;
 };
 
 function getInitials(name: string) {
@@ -38,7 +39,7 @@ function getInitials(name: string) {
   return initials || "OE";
 }
 
-export function NavUser({ user }: NavUserProps) {
+export function NavUser({ user, compact = false }: NavUserProps) {
   const { isMobile } = useSidebar();
   const initials = getInitials(user.name);
 
@@ -50,27 +51,37 @@ export function NavUser({ user }: NavUserProps) {
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+                className={
+                  compact
+                    ? "data-open:bg-sidebar-accent justify-center md:h-10 md:p-0 group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0!"
+                    : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+                }
               />
             }
           >
-            <Avatar>
+            <Avatar className="size-9 rounded-xl ring-1 ring-border">
               {user.avatar ? (
                 <AvatarImage src={user.avatar} alt={user.name} />
               ) : null}
-              <AvatarFallback>{initials}</AvatarFallback>
+              <AvatarFallback className="rounded-xl">{initials}</AvatarFallback>
             </Avatar>
 
-            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+            <div
+              className={
+                compact
+                  ? "sr-only"
+                  : "grid min-w-0 flex-1 text-left text-sm leading-tight"
+              }
+            >
               <span className="truncate font-medium">{user.name}</span>
               <span className="truncate text-xs">{user.email}</span>
             </div>
 
-            <ChevronsUpDown className="ml-auto size-4" />
+            {!compact ? <ChevronsUpDown className="ml-auto size-4" /> : null}
           </DropdownMenuTrigger>
 
           <DropdownMenuContent
-            className="min-w-64"
+            className="min-w-72 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
@@ -78,11 +89,13 @@ export function NavUser({ user }: NavUserProps) {
             <DropdownMenuGroup>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex items-center gap-3 py-1.5">
-                  <Avatar>
+                  <Avatar className="size-10 rounded-xl ring-1 ring-border">
                     {user.avatar ? (
                       <AvatarImage src={user.avatar} alt={user.name} />
                     ) : null}
-                    <AvatarFallback>{initials}</AvatarFallback>
+                    <AvatarFallback className="rounded-xl">
+                      {initials}
+                    </AvatarFallback>
                   </Avatar>
 
                   <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
@@ -97,12 +110,12 @@ export function NavUser({ user }: NavUserProps) {
 
             <DropdownMenuSeparator />
 
-            <div className="px-1 py-1">
-              <div className="text-muted-foreground flex items-center gap-2 rounded-md px-2 py-1.5 text-xs">
+            <DropdownMenuGroup>
+              <div className="text-muted-foreground flex items-center gap-2 px-2 py-1.5 text-xs">
                 <UserRound className="size-4" />
                 Supabase authenticated
               </div>
-            </div>
+            </DropdownMenuGroup>
 
             <DropdownMenuSeparator />
 

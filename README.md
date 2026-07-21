@@ -1,29 +1,103 @@
-# Create T3 App
+# On Emit
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+On Emit is a Superhuman-style Gmail and Google Calendar command center built with Next.js 15, Supabase Postgres/Auth, and Corsair. Every integration request is tenant-scoped with the authenticated Supabase user ID; inbox and calendar data is loaded from the connected Google account, never hardcoded.
 
-## What's next? How do I make an app with this?
+## Workflow improvements
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- Read complete MIME email conversations with safe HTML, Markdown/plain-text fallback, inline images, optional remote images, and authenticated attachments.
+- Reply, save reply drafts, archive, and change read state without leaving the thread.
+- Search Gmail with native advanced operators and open results in the same reader.
+- Filter a priority inbox classified from the newest email subject and body, cached in Postgres. OpenAI is optional; explainable local rules are the fallback.
+- Create, edit, and cancel Calendar events while notifying attendees.
+- Use keyboard actions: `Ctrl/Cmd+K` quick action, `/` search focus, `R` reply, `E` archive, `Shift+I` read, `Shift+U` unread, and `Ctrl/Cmd+Enter` send.
+- Chat with Gmail and Calendar through Corsair MCP. External writes are unavailable during preview and are enabled only after explicit confirmation.
+- Receive Corsair Gmail/Calendar webhooks and refresh connected browsers through Postgres `LISTEN/NOTIFY` and server-sent events, without polling Google APIs.
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Stack
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- Next.js 15, React 19, TypeScript, tRPC, React Query
+- Supabase Auth and Supabase Postgres
+- Drizzle ORM
+- Corsair with Gmail and Google Calendar plugins
+- Corsair MCP, OpenAI Agents SDK, and optional OpenAI models
+- shadcn/Base UI, Tailwind CSS, React Hook Form, Zustand
 
-## Learn More
+## Local setup
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+1. Install dependencies: `pnpm install`
+2. Copy `.env.example` to `.env` and fill the required values.
+3. For local development only, apply the schema with `pnpm db:push`. Never use
+   `db:push` in production; review the generated SQL/schema diff, take a backup,
+   and apply versioned migrations with `pnpm db:migrate` instead.
+4. In Corsair, configure Gmail and Google Calendar OAuth credentials and the redirect URL shown below.
+5. Start the app: `pnpm dev`
+6. Sign in with Supabase, open **Connected services**, and connect Gmail and Calendar.
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+### Environment variables
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+| Variable                               | Required | Purpose                                                     |
+| -------------------------------------- | -------- | ----------------------------------------------------------- |
+| `APP_URL`                              | Yes      | Public app origin, for example `http://localhost:3000`      |
+| `DATABASE_URL`                         | Yes      | Supabase/Postgres connection string                         |
+| `CORSAIR_KEK`                          | Yes      | Encrypts Corsair credentials and signs tenant webhook URLs  |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Yes      | Supabase project URL                                        |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes      | Supabase publishable/anon key                               |
+| `OPENAI_API_KEY`                       | No       | Enables model-backed priority classification and agent chat |
+| `OPENAI_PRIORITY_MODEL`                | No       | Defaults to `gpt-5.6-luna`                                  |
+| `OPENAI_AGENT_MODEL`                   | No       | Defaults to `gpt-5.6-terra`                                 |
 
-## How do I deploy this?
+Do not enable Supabase OAuth Server for this app. Supabase is the user identity provider for On Emit; Google OAuth credentials belong in Corsair.
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+### URLs
+
+- Supabase site URL: `APP_URL`
+- Supabase redirect allow-list: `${APP_URL}/auth/callback`
+- Corsair OAuth callback: `${APP_URL}/api/corsair/oauth/callback`
+- Corsair manual connect page: `${APP_URL}/connect`
+- Realtime webhook: copy the protected tenant URL displayed in **Connected services**
+
+For local Google webhooks, expose the app with ngrok and set `APP_URL` to the HTTPS tunnel before reconnecting integrations. Complete Corsair's Gmail Pub/Sub and Calendar watch setup in the provided videos; application code cannot create those provider resources without their credentials.
+
+## Database
+
+Corsair owns `corsair_integrations`, `corsair_accounts`, `corsair_entities`, and `corsair_events`. On Emit adds `corsair_email_priorities`. Clean databases should use `pnpm db:migrate`. For a database created before Drizzle's migration journal, first take a backup and compare its live schema with the SQL in `drizzle/`. Establish and record a reviewed baseline that represents the migrations already present before running any newer migration; do not replay the initial migrations over existing tables or use `db:push` as a production baseline shortcut.
+
+## Verification
+
+```bash
+pnpm typecheck
+pnpm build
+```
+
+Manual checks should cover Supabase sign-in, both Corsair connections, live inbox/calendar data, MIME email rendering, attachment download, reply/draft/actions, advanced search, event update/cancellation, priority caching, webhook refresh, and preview/confirm agent chat.
+
+## Feature branches
+
+| Branch                        | Feature                                      |
+| ----------------------------- | -------------------------------------------- |
+| `codex/fix-email-rendering`   | Safe full-fidelity email and attachments     |
+| `codex/gmail-actions`         | Reply, drafts, archive, read state           |
+| `codex/calendar-management`   | Edit/cancel events and attendee updates      |
+| `codex/advanced-gmail-search` | Gmail operator search and `/` shortcut       |
+| `codex/priority-inbox`        | Tenant-scoped AI/rules priority cache        |
+| `codex/realtime-webhooks`     | Corsair webhook, SSE, Postgres notifications |
+| `codex/corsair-agent-chat`    | Confirmed Corsair MCP agent chat             |
+| `codex/final-documentation`   | README, final verification, and report       |
+
+## Submission checklist
+
+- GitHub repo: <https://github.com/KOUSHIKG04/on-emit>
+- Live link: add after deployment
+- Demo video: add after recording
+- X/Twitter post: add after publishing
+- LinkedIn post: add after publishing
+- Corsair features: Gmail API, Google Calendar API, tenant isolation, OAuth connect, database cache, webhook processor, and MCP tools
+- Bonus tasks: agent chat, realtime webhooks, keyboard shortcuts, command palette, priority filtering, advanced Gmail search, and Postgres-local priority caching
+
+## Security notes
+
+- Tenant IDs are derived server-side from validated Supabase claims.
+- Corsair access tokens stay encrypted in Postgres and never reach the browser.
+- Webhook URLs carry a constant-time-verified HMAC token.
+- Email HTML is sanitized and isolated in an iframe; remote images are blocked until requested.
+- Agent write tools are removed during preview and exposed only after confirmation.

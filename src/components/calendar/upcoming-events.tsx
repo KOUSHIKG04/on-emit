@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertCircle, CalendarDays, MapPin, Video } from "lucide-react";
+import { AlertCircle, CalendarDays, MapPin, Video } from "@/components/icons";
 
+import { EventActions } from "@/components/calendar/event-actions";
 import {
   Card,
   CardContent,
@@ -10,7 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type RouterOutputs } from "@/trpc/react";
+import { api, type RouterOutputs } from "@/trpc/client";
+import { ClientDateTime } from "@/components/shared/client-date-time";
 
 type CalendarEvent = RouterOutputs["calendar"]["upcoming"][number];
 
@@ -65,26 +67,6 @@ function groupEvents(events: CalendarEvent[]): EventGroup[] {
       }),
     },
   ];
-}
-
-function formatEventTime(event: CalendarEvent) {
-  if (event.allDay) {
-    return "All day";
-  }
-
-  const start = new Date(event.start);
-  const end = event.end ? new Date(event.end) : null;
-
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-
-  if (!end || Number.isNaN(end.getTime())) {
-    return formatter.format(start);
-  }
-
-  return `${formatter.format(start)} – ${formatter.format(end)}`;
 }
 
 export function UpcomingEvents() {
@@ -170,10 +152,25 @@ function EventRow({ event }: { event: CalendarEvent }) {
 
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground text-xs">
-            {formatEventTime(event)}
+            {event.allDay ? (
+              "All day"
+            ) : (
+              <>
+                <ClientDateTime value={event.start} format="event" />
+                {event.end ? (
+                  <>
+                    {" - "}
+                    <ClientDateTime value={event.end} format="event" />
+                  </>
+                ) : null}
+              </>
+            )}
           </p>
 
-          <p className="mt-1 font-medium">{event.title}</p>
+          <div className="mt-1 flex items-start justify-between gap-2">
+            <p className="min-w-0 font-medium">{event.title}</p>
+            <EventActions event={event} />
+          </div>
 
           {event.location ? (
             <p className="text-muted-foreground mt-2 flex items-center gap-1 text-xs">
