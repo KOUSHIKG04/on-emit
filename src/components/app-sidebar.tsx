@@ -13,6 +13,7 @@ import {
 } from "@/components/icons";
 
 import { CalendarSidebar } from "@/components/calendar/calendar-sidebar";
+import { GmailSearch } from "@/components/mail/gmail-search";
 import { InboxPanel } from "@/components/mail/inbox-panel";
 import { NavUser } from "@/components/nav-user";
 import {
@@ -61,10 +62,15 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     (state) => state.setAgentPanelOpen,
   );
   const agentPanelOpen = useWorkspaceStore((state) => state.agentPanelOpen);
+  const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
   const { open, setOpen, setOpenMobile } = useSidebar();
 
   useEffect(() => {
-    setOpen(activeView === "inbox" || activeView === "calendar");
+    setOpen(
+      activeView === "inbox" ||
+        activeView === "calendar" ||
+        activeView === "search",
+    );
   }, [activeView, setOpen]);
 
   function openView(view: WorkspaceView) {
@@ -76,7 +82,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     }
 
     setActiveView(view);
-    setOpen(view === "inbox" || view === "calendar");
+    setOpen(
+      view === "inbox" || view === "calendar" || view === "search",
+    );
     setOpenMobile(false);
   }
 
@@ -99,10 +107,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                 tooltip={{ children: "On Emit", hidden: false }}
                 onClick={() => openView("focus")}
               >
-                <span className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Zap className="size-4" />
-                </span>
-                <span className="sr-only">Open On Emit focus workspace</span>
+                <div className="bg-amber-400 text-amber-950 flex size-7 items-center justify-center rounded-lg shadow-sm">
+                  <Zap className="size-4 fill-current" />
+                </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -110,25 +117,25 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
 
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupContent className="px-1.5 md:px-0">
+            <SidebarGroupContent>
               <SidebarMenu>
                 {workspaceItems.map((item) => {
                   const Icon = item.icon;
-                  const isAgent = item.view === "agent";
+                  const active = activeView === item.view;
 
                   return (
                     <SidebarMenuItem key={item.view}>
                       <SidebarMenuButton
-                        type="button"
-                        aria-label={item.title}
+                        aria-pressed={active}
+                        className={cn(
+                          "justify-center md:h-10 md:p-0 group-data-[collapsible=icon]:w-full!",
+                          active &&
+                            "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
+                        )}
                         tooltip={{ children: item.title, hidden: false }}
-                        isActive={
-                          isAgent ? agentPanelOpen : activeView === item.view
-                        }
-                        className="justify-center px-0 group-data-[collapsible=icon]:w-full!"
                         onClick={() => openView(item.view)}
                       >
-                        <Icon />
+                        <Icon className="size-4" />
                         <span className="sr-only">{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -140,21 +147,28 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         </SidebarContent>
 
         <SidebarFooter>
-          <NavUser user={user} compact />
+          <NavUser user={user} />
         </SidebarFooter>
       </Sidebar>
 
       <Sidebar
         collapsible="none"
-        className="hidden min-w-0 flex-1 overflow-hidden md:flex"
+        className="flex-1 overflow-hidden"
+        style={{
+          width: open ? `${sidebarWidth}px` : 0,
+        }}
       >
         {activeView === "inbox" ? <InboxPanel variant="sidebar" /> : null}
         {activeView === "calendar" ? (
           <CalendarSidebar accountEmail={user.email} />
         ) : null}
+        {activeView === "search" ? <GmailSearch variant="panel" /> : null}
       </Sidebar>
 
-      {open && (activeView === "inbox" || activeView === "calendar") ? (
+      {open &&
+      (activeView === "inbox" ||
+        activeView === "calendar" ||
+        activeView === "search") ? (
         <SidebarResizeHandle />
       ) : null}
     </Sidebar>

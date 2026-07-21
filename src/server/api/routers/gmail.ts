@@ -116,7 +116,8 @@ const searchInput = z.object({
 });
 
 const mailboxListInput = z.object({
-  maxResults: z.number().int().min(12).max(50).default(12),
+  maxResults: z.number().int().min(1).max(500).default(50),
+  query: z.string().optional(),
 });
 
 async function ensureGmailConnected(tenantId: string) {
@@ -177,7 +178,9 @@ async function listThreadSummaries(
         thread.snippet ??
         "No message preview available.",
       receivedAt: toISOString(latestMessage?.internalDate),
-      unread: new Set(latestMessage?.labelIds).has("UNREAD"),
+      unread: (thread.messages ?? []).some((message) =>
+        message.labelIds?.includes("UNREAD"),
+      ),
       messageCount: messages.length,
     };
   });
@@ -467,9 +470,10 @@ export const gmailRouter = createTRPCRouter({
        * threads.list only returns lightweight thread information.
        * We request a small number to avoid unnecessary API calls.
        */
+      const queryFilter = input.query?.trim() ? input.query.trim() : "in:inbox";
       const inboxThreads = await listThreadSummaries(
         tenantCorsair,
-        "in:inbox",
+        queryFilter,
         input.maxResults,
       );
       const priorities = await getEmailPriorities(ctx.userId, inboxThreads);

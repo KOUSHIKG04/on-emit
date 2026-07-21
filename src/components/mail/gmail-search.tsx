@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { AlertCircle, Clock3, Mail, MailOpen, Search, X } from "@/components/icons";
+import {
+  AlertCircle,
+  ChevronDown,
+  Clock3,
+  Mail,
+  MailOpen,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +21,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -120,6 +137,27 @@ export function GmailSearch({
     },
   );
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "unread" | "read">(
+    "all",
+  );
+
+  function applyStatusFilter(status: "all" | "unread" | "read") {
+    setStatusFilter(status);
+    const currentQuery = inputRef.current?.value ?? "";
+    let nextQuery = currentQuery.replace(/\bis:(unread|read)\b/gi, "").trim();
+
+    if (status === "unread") {
+      nextQuery = nextQuery ? `${nextQuery} is:unread` : "is:unread";
+    } else if (status === "read") {
+      nextQuery = nextQuery ? `${nextQuery} is:read` : "is:read";
+    }
+
+    setValue("query", nextQuery, { shouldValidate: true });
+    if (nextQuery) {
+      setSubmittedQuery(nextQuery);
+    }
+  }
+
   function runSearch(values: SearchValues) {
     const query = values.query.trim();
     if (!query) return;
@@ -164,22 +202,21 @@ export function GmailSearch({
     >
       <CardHeader
         className={cn(
-          "border-b p-5",
+          "border-b p-4 sm:p-5",
           variant === "page" && "p-7 md:p-9",
         )}
       >
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
           <Search className="size-5" />
           Advanced Gmail search
         </CardTitle>
-        <CardDescription>
-          Use Gmail operators such as from:, to:, subject:, after: and
-          has:attachment. Press / to focus search.
+        <CardDescription className="text-xs">
+          Use Gmail operators or select filters below. Press / to focus search.
         </CardDescription>
 
         <form
           className={cn(
-            "mt-4 flex flex-col gap-2 sm:flex-row",
+            "mt-3 flex flex-col gap-2 sm:flex-row",
             variant === "page" && "md:mt-6",
           )}
           onSubmit={handleSubmit(runSearch)}
@@ -199,25 +236,101 @@ export function GmailSearch({
                 }}
                 aria-label="Gmail search query"
                 aria-invalid={Boolean(formState.errors.query)}
-                className="pl-9"
-                placeholder="from:friend@example.com has:attachment newer_than:30d"
+                className="pl-9 text-xs sm:text-sm"
+                placeholder="from:friend@example.com is:unread"
               />
             </div>
             <FieldError errors={[formState.errors.query]} />
           </Field>
-          <Button type="submit" disabled={search.isFetching}>
-            <Search />
+          <Button type="submit" disabled={search.isFetching} size="sm">
+            <Search className="size-4" />
             {search.isFetching ? "Searching..." : "Search"}
           </Button>
         </form>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          {/* Read / Unread Status Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 px-2.5 text-xs font-normal"
+                >
+                  <Mail className="size-3.5" />
+                  <span>
+                    {statusFilter === "unread"
+                      ? "Unread only"
+                      : statusFilter === "read"
+                        ? "Read only"
+                        : "Status: All"}
+                  </span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="start">
+              <DropdownMenuRadioGroup
+                value={statusFilter}
+                onValueChange={(val) =>
+                  applyStatusFilter(val as "all" | "unread" | "read")
+                }
+              >
+                <DropdownMenuRadioItem value="all">
+                  All messages
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="unread">
+                  Unread only (is:unread)
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="read">
+                  Read only (is:read)
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Search Operators Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 px-2.5 text-xs font-normal"
+                >
+                  <SlidersHorizontal className="size-3.5" />
+                  <span>Operators</span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="start" className="w-56">
+              {operatorExamples.map((example) => (
+                <DropdownMenuItem
+                  key={example.query}
+                  className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
+                  onClick={() => applyQuery(example.query)}
+                >
+                  <span className="text-xs font-medium">{example.label}</span>
+                  <span className="text-muted-foreground font-mono text-[11px]">
+                    {example.query}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Quick Suggestion Pills */}
           {suggestions.map((suggestion) => (
             <Button
               key={suggestion.query}
               type="button"
               size="sm"
-              variant="outline"
+              variant="ghost"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => applyQuery(suggestion.query)}
             >
               {suggestion.label}
@@ -228,7 +341,7 @@ export function GmailSearch({
 
       <CardContent className="p-0">
         {!submittedQuery && recentSearches.length > 0 ? (
-          <div className={cn("border-b p-5", variant === "page" && "p-7")}>
+          <div className={cn("border-b p-4", variant === "page" && "p-7")}>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-muted-foreground flex items-center gap-2 text-xs font-semibold uppercase">
                 <Clock3 className="size-3.5" /> Recent searches
@@ -253,40 +366,6 @@ export function GmailSearch({
                 >
                   {query}
                 </Button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {!submittedQuery ? (
-          <div className={cn("p-5", variant === "page" && "p-7 md:p-9")}>
-            <div className="mb-4">
-              <p className="text-sm font-semibold">
-                Search with Gmail operators
-              </p>
-              <p className="text-muted-foreground mt-1 text-xs leading-5">
-                Start with one operator, then combine them to narrow your
-                results.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {operatorExamples.map((example) => (
-                <button
-                  key={example.query}
-                  type="button"
-                  className="hover:bg-muted/60 rounded-xl border p-4 text-left transition-colors"
-                  onClick={() => applyQuery(example.query)}
-                >
-                  <span className="block text-sm font-medium">
-                    {example.label}
-                  </span>
-                  <code className="text-primary bg-primary/10 mt-2 inline-block max-w-full truncate rounded-md px-2 py-1 text-xs">
-                    {example.query}
-                  </code>
-                  <span className="text-muted-foreground mt-2 block text-xs leading-5">
-                    {example.description}
-                  </span>
-                </button>
               ))}
             </div>
           </div>

@@ -12,21 +12,15 @@ export function SearchWorkspace() {
   const selectThread = useWorkspaceStore((state) => state.selectSearchThread);
 
   return (
-    <div
-      className={cn(
-        "min-h-full min-w-0",
-        selectedThreadId
-          ? "bg-border grid gap-px lg:grid-cols-[minmax(26rem,34rem)_minmax(0,1fr)] [&>[data-slot=card]]:min-h-full [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:ring-0"
-          : "bg-background p-4 md:p-7 xl:p-10",
-      )}
-    >
-      <GmailSearch variant={selectedThreadId ? "panel" : "page"} />
-      {selectedThreadId ? (
-        <ThreadReader
-          threadId={selectedThreadId}
-          onClose={() => selectThread(null)}
-        />
-      ) : null}
+    <div className="bg-border grid min-h-full md:grid-cols-1 [&>[data-slot=card]]:min-h-full [&>[data-slot=card]]:rounded-none [&>[data-slot=card]]:ring-0">
+      <div className="md:hidden">
+        <GmailSearch variant="panel" />
+      </div>
+
+      <ThreadReader
+        threadId={selectedThreadId ?? undefined}
+        onClose={() => selectThread(null)}
+      />
     </div>
   );
 }
