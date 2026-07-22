@@ -5,28 +5,21 @@ import {
   AlertCircle,
   Archive,
   CheckSquare2,
-  ChevronDown,
+  Inbox,
   Mail,
   MailOpen,
+  Plus,
   RefreshCw,
   Search,
   Sparkles,
-  SquarePen,
-  Tag,
 } from "@/components/icons";
 
 import { ClientDateTime } from "@/components/shared/client-date-time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api } from "@/trpc/client";
@@ -35,12 +28,12 @@ type InboxPanelProps = {
   variant?: "card" | "sidebar";
 };
 
-type MailboxMode = "inbox" | "priority" | "drafts";
+type MailboxMode = "inbox" | "priority" | "drafts" | "archived";
 
 const mailboxTabs = [
-  { value: "inbox" as const, label: "Inbox", icon: Mail },
-  { value: "priority" as const, label: "Priority", icon: Sparkles },
-  { value: "drafts" as const, label: "Drafts", icon: SquarePen },
+  { value: "inbox" as const, label: "Inbox" },
+  { value: "priority" as const, label: "Priority" },
+  { value: "drafts" as const, label: "Drafts" },
 ];
 
 export function InboxPanel({ variant = "card" }: InboxPanelProps) {
@@ -52,9 +45,11 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
 
   const selectedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
   const selectThread = useWorkspaceStore((state) => state.selectThread);
-  const setActiveView = useWorkspaceStore((state) => state.setActiveView);
   const setCommandPaletteOpen = useWorkspaceStore(
     (state) => state.setCommandPaletteOpen,
+  );
+  const setQuickActionMode = useWorkspaceStore(
+    (state) => state.setQuickActionMode,
   );
   const labelFilter = useWorkspaceStore((state) => state.inboxLabelFilter);
   const setLabelFilter = useWorkspaceStore(
@@ -69,7 +64,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const inbox = api.gmail.inbox.useQuery(
     { maxResults },
     {
-      enabled: mode !== "drafts",
+      enabled: mode === "inbox" || mode === "priority",
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
@@ -82,17 +77,30 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
       refetchOnWindowFocus: false,
     },
   );
+  const archived = api.gmail.archived.useQuery(
+    { maxResults },
+    {
+      enabled: mode === "archived",
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  );
   const utils = api.useUtils();
   const threadAction = api.gmail.threadAction.useMutation({
     async onMutate(variables) {
       await utils.gmail.inbox.cancel();
+      await utils.gmail.archived.cancel();
       await utils.gmail.stats.cancel();
 
       const previousInbox = utils.gmail.inbox.getData({ maxResults });
+      const previousArchived = utils.gmail.archived.getData({ maxResults });
 
       if (previousInbox) {
         utils.gmail.inbox.setData({ maxResults }, (old) => {
           if (!old) return old;
+          if (variables.action === "archive") {
+            return old.filter((thread) => thread.id !== variables.threadId);
+          }
           return old.map((t) => {
             if (t.id === variables.threadId) {
               if (variables.action === "mark_read") {
@@ -107,22 +115,46 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
         });
       }
 
-      return { previousInbox };
+      if (previousArchived) {
+        utils.gmail.archived.setData({ maxResults }, (old) => {
+          if (!old) return old;
+          if (variables.action === "unarchive") {
+            return old.filter((thread) => thread.id !== variables.threadId);
+          }
+          return old.map((thread) => {
+            if (thread.id !== variables.threadId) return thread;
+            if (variables.action === "mark_read") {
+              return { ...thread, unread: false };
+            }
+            if (variables.action === "mark_unread") {
+              return { ...thread, unread: true };
+            }
+            return thread;
+          });
+        });
+      }
+
+      return { previousInbox, previousArchived };
     },
     onError(_err, _variables, context) {
       if (context?.previousInbox) {
         utils.gmail.inbox.setData({ maxResults }, context.previousInbox);
       }
+      if (context?.previousArchived) {
+        utils.gmail.archived.setData({ maxResults }, context.previousArchived);
+      }
     },
     async onSettled() {
       await Promise.all([
         utils.gmail.inbox.invalidate(),
+        utils.gmail.archived.invalidate(),
         utils.gmail.stats.invalidate(),
       ]);
     },
   });
 
-  const activeQuery = mode === "drafts" ? drafts : inbox;
+  const activeQuery =
+    mode === "drafts" ? drafts : mode === "archived" ? archived : inbox;
   const threads = activeQuery.data;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleThreads = threads?.filter((thread) => {
@@ -141,7 +173,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   });
   const gmailDisconnected =
     activeQuery.error?.data?.code === "PRECONDITION_FAILED";
-  const canLoadMore = Boolean(threads && threads.length === maxResults);
+  const canLoadMore = Boolean(threads?.length === maxResults);
 
   useEffect(() => {
     function focusSearch(event: KeyboardEvent) {
@@ -169,50 +201,46 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   return (
     <Card
       className={cn(
-        "w-full min-w-0 min-h-[550px]",
+        "min-h-[550px] w-full min-w-0",
         sidebar &&
           "bg-sidebar text-sidebar-foreground h-full min-h-0 gap-0 rounded-none py-0 shadow-none ring-0",
       )}
     >
       <CardHeader className={cn("gap-0", sidebar ? "p-0" : "border-b p-0")}>
         <div className="flex h-16 w-full max-w-full min-w-0 shrink-0 items-center gap-1.5 border-b px-2.5 sm:px-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1 scrollbar-none">
-            {mailboxTabs.map((tab) => {
-              const Icon = tab.icon;
-              const active = mode === tab.value;
+          <Tabs
+            value={mode}
+            onValueChange={(val) => changeMode(val as MailboxMode)}
+            className="min-w-0 flex-1 scrollbar-none overflow-x-auto"
+          >
+            <TabsList className="bg-muted/50 h-9 w-fit shrink-0 items-center justify-start gap-1 p-1">
+              {mailboxTabs.map((tab) => {
+                const count =
+                  tab.value === "inbox"
+                    ? stats.data?.total
+                    : tab.value === "priority" && inbox.data
+                      ? inbox.data.filter((t) => t.priority === "high").length
+                      : tab.value === "drafts" && drafts.data
+                        ? drafts.data.length
+                        : null;
 
-              const count =
-                tab.value === "inbox"
-                  ? stats.data?.total
-                  : tab.value === "priority" && inbox.data
-                    ? inbox.data.filter((t) => t.priority === "high").length
-                    : tab.value === "drafts" && drafts.data
-                      ? drafts.data.length
-                      : null;
-
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  aria-pressed={active}
-                  className={cn(
-                    "text-muted-foreground hover:text-foreground flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors whitespace-nowrap",
-                    active &&
-                      "bg-background text-foreground shadow-xs ring-1 ring-border",
-                  )}
-                  onClick={() => changeMode(tab.value)}
-                >
-                  <Icon className="size-3.5 shrink-0" />
-                  <span>{tab.label}</span>
-                  {typeof count === "number" && count > 0 ? (
-                    <span className="bg-primary/15 text-primary rounded-full px-1.5 text-[10px] font-semibold">
-                      {count}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="h-7 gap-1.5 rounded-md px-2.5 text-xs font-medium"
+                  >
+                    <span>{tab.label}</span>
+                    {typeof count === "number" && count > 0 ? (
+                      <span className="bg-primary/15 text-primary rounded-full px-1.5 text-[10px] font-semibold">
+                        {count}
+                      </span>
+                    ) : null}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
 
           <div className="flex shrink-0 items-center gap-1">
             <Button
@@ -232,9 +260,12 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
               size="icon-sm"
               variant="outline"
               aria-label="Compose email"
-              onClick={() => setCommandPaletteOpen(true)}
+              onClick={() => {
+                setQuickActionMode("email");
+                setCommandPaletteOpen(true);
+              }}
             >
-              <SquarePen />
+              <Plus />
             </Button>
           </div>
         </div>
@@ -246,7 +277,11 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
               ref={searchRef}
               type="search"
               value={query}
-              placeholder={sidebar ? "Search mail..." : "Search sender, subject, or message"}
+              placeholder={
+                sidebar
+                  ? "Search mail..."
+                  : "Search sender, subject, or message"
+              }
               className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-xs outline-none"
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -254,10 +289,25 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
               /
             </kbd>
           </label>
+        </div>
 
-          <div className="border-border/60 bg-muted/20 flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5">
-            <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-              <Mail className="text-muted-foreground size-3.5 shrink-0" />
+        <div className="flex min-h-11 items-center justify-between gap-4 border-y p-2.5 sm:p-3">
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            aria-pressed={mode === "archived"}
+            className="rounded-sm border-none p-4"
+            onClick={() =>
+              changeMode(mode === "archived" ? "inbox" : "archived")
+            }
+          >
+            <Archive />
+            Archived
+          </Button>
+
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-foreground text-xs font-medium whitespace-nowrap">
               Unread only
             </span>
             <Switch
@@ -272,10 +322,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
       </CardHeader>
 
       <CardContent
-        className={cn(
-          "p-2",
-          sidebar && "min-h-0 flex-1 overflow-y-auto px-2",
-        )}
+        className={cn("p-2", sidebar && "min-h-0 flex-1 overflow-y-auto px-2")}
       >
         {activeQuery.isLoading ? <InboxSkeleton /> : null}
 
@@ -288,18 +335,34 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
 
         {activeQuery.error && !gmailDisconnected ? (
           <EmptyState
-            title={`${mode === "drafts" ? "Drafts" : "Inbox"} could not be loaded`}
+            title={`${
+              mode === "drafts"
+                ? "Drafts"
+                : mode === "archived"
+                  ? "Archived conversations"
+                  : "Inbox"
+            } could not be loaded`}
             description={activeQuery.error.message}
           />
         ) : null}
 
-        {!activeQuery.isLoading && !activeQuery.error && threads?.length === 0 ? (
+        {!activeQuery.isLoading &&
+        !activeQuery.error &&
+        threads?.length === 0 ? (
           <EmptyState
-            title={mode === "drafts" ? "No saved drafts" : "Your inbox is empty"}
+            title={
+              mode === "drafts"
+                ? "No saved drafts"
+                : mode === "archived"
+                  ? "No archived conversations"
+                  : "Your inbox is empty"
+            }
             description={
               mode === "drafts"
                 ? "Draft messages saved in Gmail will appear here."
-                : "No inbox messages were returned by Gmail."
+                : mode === "archived"
+                  ? "Conversations you archive will appear here."
+                  : "No inbox messages were returned by Gmail."
             }
           />
         ) : null}
@@ -328,7 +391,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                   key={thread.id}
                   className={cn(
                     "group/mail-row hover:bg-muted/50 flex items-center justify-between gap-2 overflow-hidden rounded-xl border border-transparent p-2.5 transition-colors",
-                    selected && "bg-muted ring-1 ring-border border-border",
+                    selected && "bg-muted ring-border border-border ring-1",
                   )}
                 >
                   <button
@@ -336,7 +399,6 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                     className="flex min-w-0 flex-1 flex-col text-left outline-none"
                     onClick={() => {
                       selectThread(thread.id);
-                      setActiveView("inbox");
                       if (thread.unread) {
                         threadAction.mutate({
                           threadId: thread.id,
@@ -352,10 +414,10 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                         ) : null}
                         <span
                           className={cn(
-                            "truncate text-sm",
+                            "truncate text-[13px]",
                             thread.unread
-                              ? "font-semibold text-foreground"
-                              : "font-medium text-foreground/90",
+                              ? "text-foreground font-semibold"
+                              : "text-foreground/90 font-medium",
                           )}
                         >
                           {thread.senderName ?? thread.senderEmail}
@@ -374,16 +436,16 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
 
                     <span
                       className={cn(
-                        "mt-1 block truncate text-sm",
+                        "mt-1 block truncate text-[13px]",
                         thread.unread
-                          ? "font-semibold text-foreground"
-                          : "font-medium text-foreground/80",
+                          ? "text-foreground font-semibold"
+                          : "text-foreground/80 font-medium",
                       )}
                     >
                       {thread.subject}
                     </span>
 
-                    <span className="text-muted-foreground mt-1 block truncate text-xs">
+                    <span className="text-muted-foreground mt-1 block truncate text-[11px]">
                       {thread.snippet}
                     </span>
 
@@ -395,22 +457,31 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                   </button>
 
                   {mode !== "drafts" ? (
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="-mr-1.5 flex shrink-0 items-center gap-0">
                       <Button
                         type="button"
                         size="icon-xs"
                         variant="ghost"
                         disabled={actionPending}
-                        aria-label="Archive conversation"
+                        aria-label={
+                          mode === "archived"
+                            ? "Move conversation to inbox"
+                            : "Archive conversation"
+                        }
                         className="text-muted-foreground hover:text-foreground hover:bg-muted/80"
                         onClick={() =>
                           threadAction.mutate({
                             threadId: thread.id,
-                            action: "archive",
+                            action:
+                              mode === "archived" ? "unarchive" : "archive",
                           })
                         }
                       >
-                        <Archive />
+                        {mode === "archived" ? (
+                          <Inbox className="size-[15px]" />
+                        ) : (
+                          <Archive className="size-[15px]" />
+                        )}
                       </Button>
                       <Button
                         type="button"
@@ -424,13 +495,15 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
                         onClick={() =>
                           threadAction.mutate({
                             threadId: thread.id,
-                            action: thread.unread
-                              ? "mark_read"
-                              : "mark_unread",
+                            action: thread.unread ? "mark_read" : "mark_unread",
                           })
                         }
                       >
-                        {thread.unread ? <MailOpen /> : <Mail />}
+                        {thread.unread ? (
+                          <MailOpen className="size-[15px]" />
+                        ) : (
+                          <Mail className="size-[15px]" />
+                        )}
                       </Button>
                     </div>
                   ) : null}
@@ -445,9 +518,11 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
         <Button
           type="button"
           variant="outline"
-          className="w-full border-dashed"
+          className="w-full"
           disabled={!canLoadMore || maxResults >= 500 || activeQuery.isFetching}
-          onClick={() => setMaxResults((current) => Math.min(500, current + 50))}
+          onClick={() =>
+            setMaxResults((current) => Math.min(500, current + 50))
+          }
         >
           <CheckSquare2 />
           {canLoadMore && maxResults < 500

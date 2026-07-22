@@ -1,14 +1,16 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/toaster";
+import { OAuthToastListener } from "@/components/integrations/oauth-toast-listener";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import { WorkspaceStoreProvider } from "@/providers/workspace-store-provider";
 import { RealtimeSync } from "@/components/realtime/realtime-sync";
 import { WorkspaceSidebarProvider } from "@/components/workspace/workspace-sidebar-provider";
-import { getCachedAuth } from "./cached-auth";
+import { getCachedAuth } from "@/lib/supabase/cached-auth";
 
-type AppLayoutProps = {
+type WorkspaceLayoutProps = {
   children: ReactNode;
 };
 
@@ -18,7 +20,9 @@ function asRecord(value: unknown) {
     : {};
 }
 
-export default async function AppLayout({ children }: AppLayoutProps) {
+export default async function WorkspaceLayout({
+  children,
+}: WorkspaceLayoutProps) {
   const { claims } = await getCachedAuth();
   const claimValues = asRecord(claims);
   const metadata = asRecord(claimValues.user_metadata);
@@ -42,6 +46,10 @@ export default async function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <WorkspaceStoreProvider>
+      <Toaster position="top-right" richColors />
+      <Suspense fallback={null}>
+        <OAuthToastListener />
+      </Suspense>
       <RealtimeSync />
       <WorkspaceSidebarProvider>
         <AppSidebar

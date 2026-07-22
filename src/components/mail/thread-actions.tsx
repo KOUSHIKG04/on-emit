@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toaster";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api } from "@/trpc/client";
 
@@ -55,13 +56,21 @@ export function ThreadActions({
 
   const actionMutation = api.gmail.threadAction.useMutation({
     async onSuccess(data) {
-      setFeedback(
+      const msg =
         data.action === "archive"
           ? "Conversation archived."
           : data.action === "mark_read"
             ? "Conversation marked as read."
-            : "Conversation marked as unread.",
-      );
+            : "Conversation marked as unread.";
+
+      setFeedback(msg);
+      if (data.action === "archive") {
+        toast.success("Archived", {
+          description: "Conversation moved out of inbox.",
+        });
+      } else {
+        toast.info("Thread Updated", { description: msg });
+      }
 
       await utils.gmail.inbox.invalidate();
 
@@ -74,6 +83,11 @@ export function ThreadActions({
       } else {
         await utils.gmail.thread.invalidate({ threadId });
       }
+    },
+    onError(error) {
+      toast.error("Action Failed", {
+        description: error.message || "Could not update conversation state.",
+      });
     },
   });
 
@@ -206,17 +220,33 @@ function ReplyComposer({ threadId, messageId, onClose }: ReplyComposerProps) {
   const replyMutation = api.gmail.reply.useMutation({
     async onSuccess() {
       setFeedback("Reply sent.");
+      toast.success("Reply Sent", {
+        description: "Your email reply was delivered.",
+      });
       reset();
       await Promise.all([
         utils.gmail.thread.invalidate({ threadId }),
         utils.gmail.inbox.invalidate(),
       ]);
     },
+    onError(error) {
+      toast.error("Failed to Send Reply", {
+        description: error.message || "Email could not be delivered.",
+      });
+    },
   });
 
   const draftMutation = api.gmail.saveReplyDraft.useMutation({
     onSuccess() {
       setFeedback("Draft saved in Gmail.");
+      toast.success("Draft Saved", {
+        description: "Saved reply draft to Gmail.",
+      });
+    },
+    onError(error) {
+      toast.error("Failed to Save Draft", {
+        description: error.message || "Draft could not be saved.",
+      });
     },
   });
 

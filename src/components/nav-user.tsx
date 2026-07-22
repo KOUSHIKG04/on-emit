@@ -2,7 +2,7 @@
 
 import { ChevronsUpDown, LogOut, UserRound } from "@/components/icons";
 
-import { signOut } from "@/app/app/actions";
+import { signOut } from "@/server/actions/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -53,13 +53,13 @@ export function NavUser({ user, compact = false }: NavUserProps) {
                 size="lg"
                 className={
                   compact
-                    ? "data-open:bg-sidebar-accent justify-center md:h-10 md:p-0 group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0!"
+                    ? "data-open:bg-sidebar-accent justify-center group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0! md:h-10 md:p-0"
                     : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 }
               />
             }
           >
-            <Avatar className="size-9 rounded-xl ring-1 ring-border">
+            <Avatar className="ring-border size-9 rounded-xl ring-1">
               {user.avatar ? (
                 <AvatarImage src={user.avatar} alt={user.name} />
               ) : null}
@@ -89,7 +89,7 @@ export function NavUser({ user, compact = false }: NavUserProps) {
             <DropdownMenuGroup>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex items-center gap-3 py-1.5">
-                  <Avatar className="size-10 rounded-xl ring-1 ring-border">
+                  <Avatar className="ring-border size-10 rounded-xl ring-1">
                     {user.avatar ? (
                       <AvatarImage src={user.avatar} alt={user.name} />
                     ) : null}

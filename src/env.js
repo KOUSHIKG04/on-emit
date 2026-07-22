@@ -10,9 +10,12 @@ export const env = createEnv({
     APP_URL: z.url().default("http://localhost:3000"),
     DATABASE_URL: z.url(),
     CORSAIR_KEK: z.string().min(1),
+    GEMINI_API_KEY: z.string().min(1).optional(),
+    GEMINI_AGENT_MODEL: z
+      .enum(["gemini-3.5-flash", "gemini-3.5-flash-lite"])
+      .default("gemini-3.5-flash"),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_PRIORITY_MODEL: z.string().min(1).default("gpt-5.6-luna"),
-    OPENAI_AGENT_MODEL: z.string().min(1).default("gpt-5.6-terra"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -36,9 +39,10 @@ export const env = createEnv({
     APP_URL: process.env.APP_URL,
     DATABASE_URL: process.env.DATABASE_URL,
     CORSAIR_KEK: process.env.CORSAIR_KEK,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_AGENT_MODEL: process.env.GEMINI_AGENT_MODEL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_PRIORITY_MODEL: process.env.OPENAI_PRIORITY_MODEL,
-    OPENAI_AGENT_MODEL: process.env.OPENAI_AGENT_MODEL,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:

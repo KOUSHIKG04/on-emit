@@ -1,26 +1,27 @@
 import { createStore } from "zustand/vanilla";
 
-export type WorkspaceView =
-  | "focus"
-  | "inbox"
-  | "search"
-  | "calendar"
-  | "agent"
-  | "settings";
-
 export type CalendarView = "month" | "week" | "day";
 export type QuickActionMode = "email" | "event";
 export type InboxLabelFilter = "all" | "unread" | "read";
+export type AgentConversationSummary = {
+  id: string;
+  title: string;
+  updatedAt: number;
+};
+export type AgentChatCommand =
+  | { id: number; type: "create" }
+  | { id: number; type: "delete"; conversationId: string };
 
 export type WorkspaceState = {
-  activeView: WorkspaceView;
   selectedThreadId: string | null;
   selectedSearchThreadId: string | null;
   commandPaletteOpen: boolean;
   quickActionMode: QuickActionMode;
   composerOpen: boolean;
-  agentPanelOpen: boolean;
   agentDraft: string;
+  agentConversationSummaries: AgentConversationSummary[];
+  activeAgentConversationId: string | null;
+  agentChatCommand: AgentChatCommand | null;
   calendarDate: string;
   calendarView: CalendarView;
   primaryCalendarVisible: boolean;
@@ -30,21 +31,25 @@ export type WorkspaceState = {
 };
 
 export type WorkspaceActions = {
-  setActiveView: (view: WorkspaceView) => void;
   selectThread: (threadId: string | null) => void;
   selectSearchThread: (threadId: string | null) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setQuickActionMode: (mode: QuickActionMode) => void;
   setComposerOpen: (open: boolean) => void;
-  setAgentPanelOpen: (open: boolean) => void;
   setAgentDraft: (draft: string) => void;
+  setAgentConversationSummaries: (
+    summaries: AgentConversationSummary[],
+  ) => void;
+  setActiveAgentConversationId: (conversationId: string | null) => void;
+  requestNewAgentChat: () => void;
+  requestDeleteAgentChat: (conversationId: string) => void;
+  clearAgentChatCommand: (commandId: number) => void;
   setCalendarDate: (date: string) => void;
   setCalendarView: (view: CalendarView) => void;
   setPrimaryCalendarVisible: (visible: boolean) => void;
   setInboxLabelFilter: (filter: InboxLabelFilter) => void;
   setSidebarWidth: (width: number) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
-  closeOverlays: () => void;
 };
 
 export type WorkspaceStore = WorkspaceState & WorkspaceActions;
@@ -57,14 +62,15 @@ function getLocalDateKey() {
 }
 
 export const defaultWorkspaceState: WorkspaceState = {
-  activeView: "focus",
   selectedThreadId: null,
   selectedSearchThreadId: null,
   commandPaletteOpen: false,
   quickActionMode: "email",
   composerOpen: false,
-  agentPanelOpen: false,
   agentDraft: "",
+  agentConversationSummaries: [],
+  activeAgentConversationId: null,
+  agentChatCommand: null,
   calendarDate: getLocalDateKey(),
   calendarView: "month",
   primaryCalendarVisible: true,
@@ -78,10 +84,6 @@ export function createWorkspaceStore(
 ) {
   return createStore<WorkspaceStore>()((set) => ({
     ...initialState,
-
-    setActiveView: (activeView) => {
-      set({ activeView });
-    },
 
     selectThread: (selectedThreadId) => {
       set({ selectedThreadId });
@@ -103,12 +105,43 @@ export function createWorkspaceStore(
       set({ composerOpen });
     },
 
-    setAgentPanelOpen: (agentPanelOpen) => {
-      set({ agentPanelOpen });
-    },
-
     setAgentDraft: (agentDraft) => {
       set({ agentDraft });
+    },
+
+    setAgentConversationSummaries: (agentConversationSummaries) => {
+      set({ agentConversationSummaries });
+    },
+
+    setActiveAgentConversationId: (activeAgentConversationId) => {
+      set({ activeAgentConversationId });
+    },
+
+    requestNewAgentChat: () => {
+      set((state) => ({
+        agentChatCommand: {
+          id: (state.agentChatCommand?.id ?? 0) + 1,
+          type: "create",
+        },
+      }));
+    },
+
+    requestDeleteAgentChat: (conversationId) => {
+      set((state) => ({
+        agentChatCommand: {
+          id: (state.agentChatCommand?.id ?? 0) + 1,
+          type: "delete",
+          conversationId,
+        },
+      }));
+    },
+
+    clearAgentChatCommand: (commandId) => {
+      set((state) =>
+        state.agentChatCommand?.id === commandId
+          ? { agentChatCommand: null }
+          : state,
+      );
     },
 
     setCalendarDate: (calendarDate) => {
@@ -133,14 +166,6 @@ export function createWorkspaceStore(
 
     setSidebarCollapsed: (sidebarCollapsed) => {
       set({ sidebarCollapsed });
-    },
-
-    closeOverlays: () => {
-      set({
-        commandPaletteOpen: false,
-        composerOpen: false,
-        agentPanelOpen: false,
-      });
     },
   }));
 }

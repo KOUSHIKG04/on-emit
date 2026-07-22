@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  LoaderCircle,
   MapPin,
   Plus,
   Video,
@@ -18,7 +19,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import type { CalendarView } from "@/stores/workspace-store";
@@ -126,6 +126,9 @@ export function CalendarWorkspace() {
   const setCommandPaletteOpen = useWorkspaceStore(
     (state) => state.setCommandPaletteOpen,
   );
+  const setQuickActionMode = useWorkspaceStore(
+    (state) => state.setQuickActionMode,
+  );
 
   const selectedDate = fromDateKey(calendarDate);
   const range = getViewRange(selectedDate, calendarView);
@@ -199,8 +202,11 @@ export function CalendarWorkspace() {
             <ChevronDown />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-36">
-            {(["month", "week", "day"] as const).map((view) => (
-              <DropdownMenuItem key={view} onClick={() => setCalendarView(view)}>
+            {(["day", "month", "week"] as const).map((view) => (
+              <DropdownMenuItem
+                key={view}
+                onClick={() => setCalendarView(view)}
+              >
                 {view[0]?.toUpperCase()}
                 {view.slice(1)}
               </DropdownMenuItem>
@@ -208,7 +214,13 @@ export function CalendarWorkspace() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button type="button" onClick={() => setCommandPaletteOpen(true)}>
+        <Button
+          type="button"
+          onClick={() => {
+            setQuickActionMode("event");
+            setCommandPaletteOpen(true);
+          }}
+        >
           <Plus />
           <span className="hidden sm:inline">Create event</span>
         </Button>
@@ -265,11 +277,13 @@ function MonthGrid({
   onSelectDate: (date: Date) => void;
   onOpenDay: (date: Date) => void;
 }) {
-  const days = Array.from({ length: 42 }, (_, index) => addDays(rangeStart, index));
+  const days = Array.from({ length: 42 }, (_, index) =>
+    addDays(rangeStart, index),
+  );
   const todayKey = toDateKey(new Date());
 
   return (
-    <div className="grid min-h-[760px] flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(110px,1fr))] gap-px overflow-auto bg-border">
+    <div className="bg-border grid min-h-[760px] flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(110px,1fr))] gap-px overflow-auto">
       {Array.from({ length: 7 }, (_, index) => addDays(rangeStart, index)).map(
         (date) => (
           <div
@@ -305,7 +319,7 @@ function MonthGrid({
                 "ml-auto flex size-7 items-center justify-center rounded-full text-xs font-medium",
                 dateKey === todayKey &&
                   "bg-primary text-primary-foreground font-semibold",
-                selected && dateKey !== todayKey && "ring-1 ring-primary",
+                selected && dateKey !== todayKey && "ring-primary ring-1",
               )}
               onClick={() => onSelectDate(date)}
             >
@@ -355,9 +369,8 @@ function TimeGrid({
   events: CalendarEvent[];
 }) {
   const start = view === "week" ? startOfWeek(selectedDate) : selectedDate;
-  const days = Array.from(
-    { length: view === "week" ? 7 : 1 },
-    (_, index) => addDays(start, index),
+  const days = Array.from({ length: view === "week" ? 7 : 1 }, (_, index) =>
+    addDays(start, index),
   );
   const hourHeight = 56;
   const allDayEvents = events.filter((event) => event.allDay);
@@ -365,8 +378,10 @@ function TimeGrid({
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       <div
-        className="grid min-w-[760px] bg-border gap-px"
-        style={{ gridTemplateColumns: `64px repeat(${days.length}, minmax(120px, 1fr))` }}
+        className="bg-border grid min-w-[760px] gap-px"
+        style={{
+          gridTemplateColumns: `64px repeat(${days.length}, minmax(120px, 1fr))`,
+        }}
       >
         <div className="bg-background sticky top-0 z-20" />
         {days.map((date) => (
@@ -394,7 +409,10 @@ function TimeGrid({
           </div>
         ))}
 
-        <div className="bg-background relative" style={{ height: hourHeight * 24 }}>
+        <div
+          className="bg-background relative"
+          style={{ height: hourHeight * 24 }}
+        >
           {Array.from({ length: 24 }, (_, hour) => (
             <span
               key={hour}
@@ -501,10 +519,13 @@ function TimelineEvent({
 
 function CalendarLoading() {
   return (
-    <div className="grid flex-1 grid-cols-7 gap-px bg-border p-px">
-      {Array.from({ length: 28 }, (_, index) => (
-        <Skeleton key={index} className="min-h-28 rounded-none" />
-      ))}
+    <div
+      role="status"
+      aria-live="polite"
+      className="bg-background flex min-h-96 flex-1 flex-col items-center justify-center gap-3"
+    >
+      <LoaderCircle className="text-primary size-7 animate-spin" />
+      <p className="text-muted-foreground text-sm">Loading calendar...</p>
     </div>
   );
 }

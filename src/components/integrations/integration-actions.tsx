@@ -1,9 +1,15 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, LoaderCircle, Mail } from "@/components/icons";
+import {
+  CalendarDays,
+  CheckCircle2,
+  LoaderCircle,
+  Mail,
+} from "@/components/icons";
 import type { TablerIcon } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toaster";
 import { api } from "@/trpc/client";
 
 type Plugin = "gmail" | "googlecalendar";
@@ -13,8 +19,20 @@ export function IntegrationActions() {
     refetchOnWindowFocus: true,
   });
   const connect = api.integrations.connect.useMutation({
+    onMutate(variables) {
+      const name = variables.plugin === "gmail" ? "Gmail" : "Google Calendar";
+      toast.info(`Connecting to ${name}...`, {
+        description: "Opening Google sign-in authorization page.",
+      });
+    },
     onSuccess(data) {
       window.location.assign(data.connectUrl);
+    },
+    onError(error, variables) {
+      const name = variables.plugin === "gmail" ? "Gmail" : "Google Calendar";
+      toast.error(`Failed to connect ${name}`, {
+        description: error.message || "Could not generate authorization link.",
+      });
     },
   });
 
@@ -39,8 +57,7 @@ export function IntegrationActions() {
         connected={status.data?.googleCalendar === "connected"}
         loading={
           status.isLoading ||
-          (connect.isPending &&
-            connect.variables?.plugin === "googlecalendar")
+          (connect.isPending && connect.variables?.plugin === "googlecalendar")
         }
         icon={CalendarDays}
         onClick={() => connectPlugin("googlecalendar")}

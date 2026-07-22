@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   CalendarDays,
   CheckCircle2,
@@ -10,7 +11,6 @@ import {
   RefreshCw,
   Copy,
 } from "@/components/icons";
-
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,14 +34,13 @@ type Service = {
 };
 
 export function IntegrationStatus({ className }: { className?: string }) {
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState<string | null>(null);
   const [redirectingPlugin, setRedirectingPlugin] =
     useState<ConnectablePlugin | null>(null);
 
   const statusQuery = api.integrations.status.useQuery(undefined, {
     refetchOnWindowFocus: true,
   });
+
   const webhookQuery = api.integrations.webhookConfig.useQuery();
 
   const connectMutation = api.integrations.connect.useMutation({
@@ -49,8 +48,9 @@ export function IntegrationStatus({ className }: { className?: string }) {
       setRedirectingPlugin(variables.plugin);
       window.location.assign(data.connectUrl);
     },
-    onError() {
+    onError(error) {
       setRedirectingPlugin(null);
+      toast.error(error.message);
     },
   });
 
@@ -59,6 +59,14 @@ export function IntegrationStatus({ className }: { className?: string }) {
       setRedirectingPlugin(null);
     }
   }, [statusQuery.data]);
+
+  useEffect(() => {
+    if (statusQuery.error) toast.error(statusQuery.error.message);
+  }, [statusQuery.error]);
+
+  useEffect(() => {
+    if (webhookQuery.error) toast.error(webhookQuery.error.message);
+  }, [webhookQuery.error]);
 
   const services: Service[] = statusQuery.data
     ? [
@@ -117,26 +125,6 @@ export function IntegrationStatus({ className }: { className?: string }) {
           </div>
         ) : null}
 
-        {statusQuery.error ? (
-          <div
-            role="alert"
-            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
-          >
-            <CircleAlert className="mt-0.5 size-4 shrink-0" />
-            {statusQuery.error.message}
-          </div>
-        ) : null}
-
-        {connectMutation.error ? (
-          <div
-            role="alert"
-            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
-          >
-            <CircleAlert className="mt-0.5 size-4 shrink-0" />
-            {connectMutation.error.message}
-          </div>
-        ) : null}
-
         {services.map((service) => (
           <ConnectionRow
             key={service.plugin}
@@ -154,16 +142,6 @@ export function IntegrationStatus({ className }: { className?: string }) {
           <div className="text-muted-foreground flex items-center gap-2 rounded-xl border p-4 text-sm">
             <LoaderCircle className="size-4 animate-spin" />
             Preparing protected webhook endpoint...
-          </div>
-        ) : null}
-
-        {webhookQuery.error ? (
-          <div
-            role="alert"
-            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
-          >
-            <CircleAlert className="mt-0.5 size-4 shrink-0" />
-            {webhookQuery.error.message}
           </div>
         ) : null}
 
@@ -186,30 +164,17 @@ export function IntegrationStatus({ className }: { className?: string }) {
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(webhookQuery.data.url);
-                  setCopyError(null);
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 2_000);
+                  toast.success("Webhook URL copied.");
                 } catch {
-                  setCopied(false);
-                  setCopyError(
+                  toast.error(
                     "Could not copy the webhook URL. Select and copy it manually.",
                   );
                 }
               }}
             >
               <Copy />
-              {copied ? "Copied" : "Copy URL"}
+              Copy URL
             </Button>
-          </div>
-        ) : null}
-
-        {copyError ? (
-          <div
-            role="alert"
-            className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 rounded-xl border p-4 text-sm"
-          >
-            <CircleAlert className="mt-0.5 size-4 shrink-0" />
-            {copyError}
           </div>
         ) : null}
       </CardContent>

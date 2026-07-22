@@ -28,7 +28,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body
-        className="min-h-screen font-sans antialiased"
+        className="selection:bg-chart-3 min-h-screen font-sans antialiased"
         suppressHydrationWarning
       >
         <TRPCReactProvider>{children}</TRPCReactProvider>

@@ -33,6 +33,9 @@ export function CalendarSidebar({ accountEmail }: { accountEmail: string }) {
   const setCommandPaletteOpen = useWorkspaceStore(
     (state) => state.setCommandPaletteOpen,
   );
+  const setQuickActionMode = useWorkspaceStore(
+    (state) => state.setQuickActionMode,
+  );
   const selectedDate = fromDateKey(calendarDate);
 
   return (
@@ -41,7 +44,10 @@ export function CalendarSidebar({ accountEmail }: { accountEmail: string }) {
         <Button
           type="button"
           className="w-full"
-          onClick={() => setCommandPaletteOpen(true)}
+          onClick={() => {
+            setQuickActionMode("event");
+            setCommandPaletteOpen(true);
+          }}
         >
           <CalendarPlus />
           Create event
@@ -53,7 +59,7 @@ export function CalendarSidebar({ accountEmail }: { accountEmail: string }) {
           mode="single"
           month={selectedDate}
           selected={selectedDate}
-          className="w-full bg-transparent px-3"
+          className="w-full bg-transparent px-3 focus:border-0"
           classNames={{
             root: "w-full",
             month: "w-full flex flex-col gap-3",
@@ -67,7 +73,7 @@ export function CalendarSidebar({ accountEmail }: { accountEmail: string }) {
       </div>
 
       <Collapsible defaultOpen className="border-b">
-        <CollapsibleTrigger className="group flex w-full items-center justify-between px-5 py-4 text-left text-sm font-semibold">
+        <CollapsibleTrigger className="group flex w-full items-center justify-between px-5 py-4 text-left text-xs font-semibold uppercase">
           My calendars
           <ChevronRight className="text-muted-foreground size-4 transition-transform group-data-panel-open:rotate-90" />
         </CollapsibleTrigger>
@@ -95,8 +101,8 @@ export function CalendarSidebar({ accountEmail }: { accountEmail: string }) {
 
 function EmptyCalendarGroup({ title }: { title: string }) {
   return (
-    <Collapsible className="border-b">
-      <CollapsibleTrigger className="group flex w-full items-center justify-between px-5 py-4 text-left text-sm font-semibold">
+    <Collapsible defaultOpen className="border-b">
+      <CollapsibleTrigger className="group flex w-full items-center justify-between px-5 py-4 text-left text-xs font-semibold uppercase">
         {title}
         <ChevronRight className="text-muted-foreground size-4 transition-transform group-data-panel-open:rotate-90" />
       </CollapsibleTrigger>

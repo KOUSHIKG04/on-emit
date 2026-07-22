@@ -24,9 +24,12 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldError } from "@/components/ui/field";
@@ -96,7 +99,6 @@ export function GmailSearch({
     (state) => state.selectedSearchThreadId,
   );
   const selectThread = useWorkspaceStore((state) => state.selectSearchThread);
-  const activeView = useWorkspaceStore((state) => state.activeView);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { register, handleSubmit, setValue, formState } = useForm<SearchValues>(
     {
@@ -118,7 +120,7 @@ export function GmailSearch({
         target?.tagName === "TEXTAREA" ||
         target?.isContentEditable;
 
-      if (activeView === "search" && event.key === "/" && !typing) {
+      if (event.key === "/" && !typing) {
         event.preventDefault();
         inputRef.current?.focus();
       }
@@ -126,7 +128,7 @@ export function GmailSearch({
 
     window.addEventListener("keydown", focusSearch);
     return () => window.removeEventListener("keydown", focusSearch);
-  }, [activeView]);
+  }, []);
 
   const search = api.gmail.search.useQuery(
     { query: submittedQuery, maxResults: 25 },
@@ -194,25 +196,32 @@ export function GmailSearch({
   return (
     <Card
       className={cn(
-        "gap-0 overflow-hidden py-0",
+        "min-h-0 gap-0 overflow-hidden py-0",
         variant === "panel"
-          ? "min-h-full rounded-none ring-0"
+          ? "h-full rounded-none ring-0"
           : "mx-auto min-h-[640px] w-full max-w-5xl",
       )}
     >
       <CardHeader
         className={cn(
-          "border-b p-4 sm:p-5",
+          "shrink-0 border-b p-4 sm:p-5",
           variant === "page" && "p-7 md:p-9",
         )}
       >
-        <CardTitle className="flex items-center gap-2 text-base font-semibold sm:text-lg">
-          <Search className="size-5" />
-          Advanced Gmail search
-        </CardTitle>
-        <CardDescription className="text-xs">
-          Use Gmail operators or select filters below. Press / to focus search.
-        </CardDescription>
+        <div className="flex items-start gap-3">
+          <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
+            <Search className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="text-base font-semibold sm:text-lg">
+              Advanced Gmail search
+            </CardTitle>
+            <CardDescription className="mt-0.5 text-xs">
+              Use Gmail operators or select filters below. Press / to focus
+              search.
+            </CardDescription>
+          </div>
+        </div>
 
         <form
           className={cn(
@@ -242,14 +251,14 @@ export function GmailSearch({
             </div>
             <FieldError errors={[formState.errors.query]} />
           </Field>
+
           <Button type="submit" disabled={search.isFetching} size="sm">
             <Search className="size-4" />
             {search.isFetching ? "Searching..." : "Search"}
           </Button>
         </form>
 
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          {/* Read / Unread Status Dropdown */}
+        <div className="w-full pt-2">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -257,15 +266,16 @@ export function GmailSearch({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="h-8 gap-1.5 px-2.5 text-xs font-normal"
+                  className="h-8 w-full justify-between gap-1.5 px-2.5 text-xs font-normal"
                 >
-                  <Mail className="size-3.5" />
-                  <span>
+                  <SlidersHorizontal className="size-3.5" />
+                  <span className="flex-1 text-left">Filters</span>
+                  <span className="text-muted-foreground">
                     {statusFilter === "unread"
-                      ? "Unread only"
+                      ? "Unread"
                       : statusFilter === "read"
-                        ? "Read only"
-                        : "Status: All"}
+                        ? "Read"
+                        : "All mail"}
                   </span>
                   <ChevronDown className="size-3 opacity-60" />
                 </Button>
@@ -278,6 +288,7 @@ export function GmailSearch({
                   applyStatusFilter(val as "all" | "unread" | "read")
                 }
               >
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
                 <DropdownMenuRadioItem value="all">
                   All messages
                 </DropdownMenuRadioItem>
@@ -288,49 +299,34 @@ export function GmailSearch({
                   Read only (is:read)
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Operators</DropdownMenuLabel>
+                {operatorExamples.map((example) => (
+                  <DropdownMenuItem
+                    key={example.query}
+                    className="flex cursor-pointer flex-col items-start gap-0.5 py-2"
+                    onClick={() => applyQuery(example.query)}
+                  >
+                    <span className="text-xs font-medium">{example.label}</span>
+                    <span className="text-muted-foreground font-mono text-[11px]">
+                      {example.query}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
 
-          {/* Search Operators Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 px-2.5 text-xs font-normal"
-                >
-                  <SlidersHorizontal className="size-3.5" />
-                  <span>Operators</span>
-                  <ChevronDown className="size-3 opacity-60" />
-                </Button>
-              }
-            />
-            <DropdownMenuContent align="start" className="w-56">
-              {operatorExamples.map((example) => (
-                <DropdownMenuItem
-                  key={example.query}
-                  className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
-                  onClick={() => applyQuery(example.query)}
-                >
-                  <span className="text-xs font-medium">{example.label}</span>
-                  <span className="text-muted-foreground font-mono text-[11px]">
-                    {example.query}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Quick Suggestion Pills */}
+        <div className="grid w-full grid-cols-2 gap-1 pt-2 sm:grid-cols-4">
           {suggestions.map((suggestion) => (
             <Button
               key={suggestion.query}
               type="button"
               size="sm"
               variant="ghost"
-              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground h-8 w-full justify-center text-xs"
               onClick={() => applyQuery(suggestion.query)}
             >
               {suggestion.label}
@@ -339,7 +335,7 @@ export function GmailSearch({
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
+      <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-0">
         {!submittedQuery && recentSearches.length > 0 ? (
           <div className={cn("border-b p-4", variant === "page" && "p-7")}>
             <div className="mb-2 flex items-center justify-between">
@@ -399,7 +395,7 @@ export function GmailSearch({
 
         {search.data && search.data.length > 0 ? (
           <div>
-            <p className="text-muted-foreground border-b px-4 py-2 text-xs">
+            <p className="bg-background/95 text-muted-foreground sticky top-0 z-10 border-b px-4 py-2 text-xs backdrop-blur">
               {search.data.length} result{search.data.length === 1 ? "" : "s"}{" "}
               for {submittedQuery}
             </p>
