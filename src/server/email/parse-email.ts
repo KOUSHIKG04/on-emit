@@ -265,7 +265,16 @@ function sanitizeEmailHtml(html: string) {
         "size",
       ],
       a: ["href", "title", "target", "rel", "name", "id", "style", "class"],
-      img: ["src", "alt", "title", "width", "height", "style", "class", "border"],
+      img: [
+        "src",
+        "alt",
+        "title",
+        "width",
+        "height",
+        "style",
+        "class",
+        "border",
+      ],
       svg: ["viewbox", "width", "height", "fill", "xmlns", "style", "class"],
       path: ["d", "fill", "stroke", "stroke-width", "style", "class"],
     },
@@ -355,6 +364,8 @@ function sanitizeEmailHtml(html: string) {
     },
 
     nonTextTags: ["script", "textarea"],
+
+    allowVulnerableTags: true,
 
     disallowedTagsMode: "discard",
   });

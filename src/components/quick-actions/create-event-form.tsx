@@ -3,16 +3,31 @@
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
+  CalendarDays,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
+  Clock3,
   ExternalLink,
   LoaderCircle,
 } from "@/components/icons";
 
 import { parseEmailList } from "@/components/quick-actions/form-utils";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/trpc/client";
 
@@ -41,6 +56,27 @@ function getDefaultStart() {
   return toLocalDateTimeInput(date);
 }
 
+function parseLocalDateTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const startDateFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const durationOptions = [
+  { value: 15, label: "15 minutes" },
+  { value: 30, label: "30 minutes" },
+  { value: 45, label: "45 minutes" },
+  { value: 60, label: "1 hour" },
+  { value: 90, label: "1.5 hours" },
+  { value: 120, label: "2 hours" },
+] as const;
+
 export function CreateEventForm() {
   const utils = api.useUtils();
   const timeZone = useMemo(
@@ -50,12 +86,15 @@ export function CreateEventForm() {
   const [createdEvent, setCreatedEvent] = useState<{
     htmlLink: string | null;
   } | null>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const {
     register,
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CreateEventValues>({
     defaultValues: {
@@ -67,6 +106,44 @@ export function CreateEventForm() {
       description: "",
     },
   });
+  const startsAt = watch("startsAt");
+  const durationMinutes = watch("durationMinutes");
+  const selectedStart = parseLocalDateTime(startsAt);
+  const selectedTime = startsAt.split("T")[1]?.slice(0, 5) ?? "";
+  const selectedDuration =
+    durationOptions.find((option) => option.value === durationMinutes) ??
+    durationOptions[1];
+
+  function changeStartDate(date: Date | undefined) {
+    if (!date) return;
+
+    const next = selectedStart ?? parseLocalDateTime(getDefaultStart())!;
+    next.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+    setValue("startsAt", toLocalDateTimeInput(next), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setDatePickerOpen(false);
+  }
+
+  function changeStartTime(value: string) {
+    const [hours, minutes] = value.split(":").map(Number);
+    if (
+      hours === undefined ||
+      minutes === undefined ||
+      !Number.isFinite(hours) ||
+      !Number.isFinite(minutes)
+    ) {
+      return;
+    }
+
+    const next = selectedStart ?? parseLocalDateTime(getDefaultStart())!;
+    next.setHours(hours, minutes, 0, 0);
+    setValue("startsAt", toLocalDateTimeInput(next), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }
 
   const createMutation = api.calendar.createEvent.useMutation({
     async onSuccess(data) {
@@ -172,35 +249,99 @@ export function CreateEventForm() {
         <FieldError errors={[errors.attendees]} />
       </Field>
 
-      <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_160px]">
+      <input
+        type="hidden"
+        {...register("startsAt", {
+          required: "Choose a start date and time.",
+        })}
+      />
+
+      <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_120px_150px]">
         <Field data-invalid={Boolean(errors.startsAt)}>
           <FieldLabel htmlFor="quick-event-start">Starts</FieldLabel>
-          <Input
-            id="quick-event-start"
-            type="datetime-local"
-            aria-invalid={Boolean(errors.startsAt)}
-            {...register("startsAt", {
-              required: "Choose a start date and time.",
-            })}
-          />
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  id="quick-event-start"
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-start px-3 font-normal"
+                  aria-invalid={Boolean(errors.startsAt)}
+                />
+              }
+            >
+              <CalendarDays className="text-muted-foreground" />
+              <span className="truncate">
+                {selectedStart
+                  ? startDateFormatter.format(selectedStart)
+                  : "Choose a date"}
+              </span>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={selectedStart ?? undefined}
+                defaultMonth={selectedStart ?? undefined}
+                onSelect={changeStartDate}
+              />
+            </PopoverContent>
+          </Popover>
           <FieldError errors={[errors.startsAt]} />
+        </Field>
+
+        <Field data-invalid={Boolean(errors.startsAt)}>
+          <FieldLabel htmlFor="quick-event-time">Time</FieldLabel>
+          <div className="relative">
+            <Clock3 className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              id="quick-event-time"
+              type="time"
+              value={selectedTime}
+              className="pl-9"
+              aria-invalid={Boolean(errors.startsAt)}
+              onChange={(event) => changeStartTime(event.target.value)}
+            />
+          </div>
         </Field>
 
         <Field data-invalid={Boolean(errors.durationMinutes)}>
           <FieldLabel htmlFor="quick-event-duration">Duration</FieldLabel>
-          <select
-            id="quick-event-duration"
-            className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border px-2.5 text-sm shadow-xs outline-none focus-visible:ring-3"
-            aria-invalid={Boolean(errors.durationMinutes)}
+          <input
+            type="hidden"
             {...register("durationMinutes", { valueAsNumber: true })}
-          >
-            <option value={15}>15 minutes</option>
-            <option value={30}>30 minutes</option>
-            <option value={45}>45 minutes</option>
-            <option value={60}>1 hour</option>
-            <option value={90}>1.5 hours</option>
-            <option value={120}>2 hours</option>
-          </select>
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  id="quick-event-duration"
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between px-3 font-normal"
+                  aria-invalid={Boolean(errors.durationMinutes)}
+                />
+              }
+            >
+              <span>{selectedDuration.label}</span>
+              <ChevronDown className="text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {durationOptions.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onClick={() =>
+                    setValue("durationMinutes", option.value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <FieldError errors={[errors.durationMinutes]} />
         </Field>
       </div>

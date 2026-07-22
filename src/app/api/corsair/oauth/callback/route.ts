@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { corsair } from "@/server/corsair";
 
 function appRedirect(request: NextRequest, params: Record<string, string>) {
-  const url = new URL("/app", request.url);
+  const url = new URL("/settings", request.url);
 
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);

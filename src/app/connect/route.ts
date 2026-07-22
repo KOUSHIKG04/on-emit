@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { corsair } from "@/server/corsair";
 
 function appRedirect(request: NextRequest, error: string) {
-  const url = new URL("/app", request.url);
+  const url = new URL("/settings", request.url);
   url.searchParams.set("connect_error", error);
   return NextResponse.redirect(url);
 }

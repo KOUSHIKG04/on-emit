@@ -24,5 +24,5 @@ export async function GET(request: Request) {
 
   // The callback has one fixed destination. Never trust Host, forwarded-host,
   // or a URL-supplied redirect for an authentication boundary.
-  return NextResponse.redirect(new URL("/app", env.APP_URL));
+  return NextResponse.redirect(new URL("/focus", env.APP_URL));
 }

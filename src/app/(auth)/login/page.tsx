@@ -8,7 +8,7 @@ export default async function LoginPage() {
   const { data } = await supabase.auth.getClaims();
 
   if (data?.claims) {
-    redirect("/app");
+    redirect("/focus");
   }
 
   return (

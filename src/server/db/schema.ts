@@ -109,3 +109,16 @@ export const corsairEmailPriorities = pgTable(
     ),
   ],
 );
+
+export const corsairAiSettings = pgTable("corsair_ai_settings", {
+  userId: text("user_id").primaryKey(),
+  provider: text("provider").notNull().default("gemini"),
+  model: text("model").notNull().default("gemini-3.5-flash"),
+  encryptedApiKey: text("encrypted_api_key"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

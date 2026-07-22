@@ -1,6 +1,6 @@
 import { CalendarDays, Command, Mail, Sparkles, Zap } from "@/components/icons";
 
-import { LoginForm as GoogleLoginForm } from "@/app/login/login-form";
+import { LoginForm as GoogleLoginForm } from "@/components/auth/google-login-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { FieldDescription } from "@/components/ui/field";
 import { cn } from "@/lib/utils";

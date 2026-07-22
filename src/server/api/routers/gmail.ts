@@ -107,7 +107,7 @@ const replyInput = z.object({
 
 const threadActionInput = z.object({
   threadId: z.string().min(1).max(1_000),
-  action: z.enum(["archive", "mark_read", "mark_unread"]),
+  action: z.enum(["archive", "unarchive", "mark_read", "mark_unread"]),
 });
 
 const searchInput = z.object({
@@ -382,9 +382,11 @@ export const gmailRouter = createTRPCRouter({
         const labels =
           input.action === "archive"
             ? { removeLabelIds: ["INBOX"] }
-            : input.action === "mark_read"
-              ? { removeLabelIds: ["UNREAD"] }
-              : { addLabelIds: ["UNREAD"] };
+            : input.action === "unarchive"
+              ? { addLabelIds: ["INBOX"] }
+              : input.action === "mark_read"
+                ? { removeLabelIds: ["UNREAD"] }
+                : { addLabelIds: ["UNREAD"] };
 
         const thread = await tenantCorsair.gmail.api.threads.modify({
           userId: "me",
@@ -443,68 +445,70 @@ export const gmailRouter = createTRPCRouter({
   inbox: protectedProcedure
     .input(mailboxListInput)
     .query(async ({ ctx, input }) => {
-    try {
-      /*
-       * Check whether the Supabase user's Gmail account
-       * is connected to their Corsair tenant.
-       */
-      const connectionStatus = await corsair.manage.connectionStatus.get({
-        tenantId: ctx.userId,
-      });
+      try {
+        /*
+         * Check whether the Supabase user's Gmail account
+         * is connected to their Corsair tenant.
+         */
+        const connectionStatus = await corsair.manage.connectionStatus.get({
+          tenantId: ctx.userId,
+        });
 
-      if (connectionStatus.gmail !== "connected") {
+        if (connectionStatus.gmail !== "connected") {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Connect Gmail before loading your inbox.",
+          });
+        }
+
+        /*
+         * The Supabase user ID becomes the Corsair tenant ID.
+         *
+         * The browser does not provide the tenant ID.
+         */
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+
+        /*
+         * threads.list only returns lightweight thread information.
+         * We request a small number to avoid unnecessary API calls.
+         */
+        const queryFilter = input.query?.trim()
+          ? input.query.trim()
+          : "in:inbox";
+        const inboxThreads = await listThreadSummaries(
+          tenantCorsair,
+          queryFilter,
+          input.maxResults,
+        );
+        const priorities = await getEmailPriorities(ctx.userId, inboxThreads);
+
+        return inboxThreads.map((thread) => ({
+          ...thread,
+          priority: priorities.get(thread.id)?.priority ?? "normal",
+          priorityReason:
+            priorities.get(thread.id)?.reason ??
+            "Priority has not been classified.",
+          prioritySource: priorities.get(thread.id)?.source ?? "rules",
+        }));
+      } catch (error) {
+        /*
+         * Preserve intentional tRPC errors such as Gmail not connected.
+         */
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        /*
+         * Log the original error on the server.
+         * Do not return token or Corsair internals to the browser.
+         */
+        console.error("Failed to load Gmail inbox:", error);
+
         throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Connect Gmail before loading your inbox.",
+          code: "BAD_GATEWAY",
+          message: "Gmail could not be loaded. Please try again.",
         });
       }
-
-      /*
-       * The Supabase user ID becomes the Corsair tenant ID.
-       *
-       * The browser does not provide the tenant ID.
-       */
-      const tenantCorsair = getTenantCorsair(ctx.userId);
-
-      /*
-       * threads.list only returns lightweight thread information.
-       * We request a small number to avoid unnecessary API calls.
-       */
-      const queryFilter = input.query?.trim() ? input.query.trim() : "in:inbox";
-      const inboxThreads = await listThreadSummaries(
-        tenantCorsair,
-        queryFilter,
-        input.maxResults,
-      );
-      const priorities = await getEmailPriorities(ctx.userId, inboxThreads);
-
-      return inboxThreads.map((thread) => ({
-        ...thread,
-        priority: priorities.get(thread.id)?.priority ?? "normal",
-        priorityReason:
-          priorities.get(thread.id)?.reason ??
-          "Priority has not been classified.",
-        prioritySource: priorities.get(thread.id)?.source ?? "rules",
-      }));
-    } catch (error) {
-      /*
-       * Preserve intentional tRPC errors such as Gmail not connected.
-       */
-      if (error instanceof TRPCError) {
-        throw error;
-      }
-
-      /*
-       * Log the original error on the server.
-       * Do not return token or Corsair internals to the browser.
-       */
-      console.error("Failed to load Gmail inbox:", error);
-
-      throw new TRPCError({
-        code: "BAD_GATEWAY",
-        message: "Gmail could not be loaded. Please try again.",
-      });
-    }
     }),
 
   drafts: protectedProcedure
@@ -534,6 +538,37 @@ export const gmailRouter = createTRPCRouter({
         throw new TRPCError({
           code: "BAD_GATEWAY",
           message: "Gmail drafts could not be loaded.",
+        });
+      }
+    }),
+
+  archived: protectedProcedure
+    .input(mailboxListInput)
+    .query(async ({ ctx, input }) => {
+      try {
+        await ensureGmailConnected(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const archived = await listThreadSummaries(
+          tenantCorsair,
+          "-in:inbox -in:sent -in:drafts -in:spam -in:trash",
+          input.maxResults,
+        );
+
+        return archived.map((thread) => ({
+          ...thread,
+          priority: "normal" as const,
+          priorityReason: "Archived conversation",
+          prioritySource: "rules" as const,
+        }));
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+
+        console.error("Failed to load archived Gmail conversations:", error);
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: "Archived Gmail conversations could not be loaded.",
         });
       }
     }),
