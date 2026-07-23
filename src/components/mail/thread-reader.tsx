@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
-  ImageIcon,
   MailOpen,
   Paperclip,
-  ShieldCheck,
   UserRound,
   X,
 } from "@/components/icons";
 
+import { AgentChat } from "@/components/agent/agent-chat";
 import { EmailHtmlFrame } from "@/components/mail/email-html-frame";
 import { EmailMarkdown } from "@/components/mail/email-markdown";
 import { ThreadActions } from "@/components/mail/thread-actions";
@@ -23,6 +22,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api, type RouterOutputs } from "@/trpc/client";
 import { ClientDateTime } from "@/components/shared/client-date-time";
@@ -66,7 +72,11 @@ export function ThreadReader({
   onClose?: () => void;
 } = {}) {
   const storedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+  const requestNewAgentChat = useWorkspaceStore(
+    (state) => state.requestNewAgentChat,
+  );
   const selectedThreadId = threadId === undefined ? storedThreadId : threadId;
+  const [agentOpen, setAgentOpen] = useState(false);
 
   const utils = api.useUtils();
   const threadAction = api.gmail.threadAction.useMutation({
@@ -124,6 +134,22 @@ export function ThreadReader({
 
   return (
     <Card className="min-h-[550px] min-w-0">
+      <Sheet open={agentOpen} onOpenChange={setAgentOpen}>
+        <SheetContent
+          side="right"
+          className="w-[min(42rem,96vw)] gap-0 p-0 sm:max-w-2xl"
+          showCloseButton
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Email agent</SheetTitle>
+            <SheetDescription>
+              Chat with the agent about the selected Gmail conversation.
+            </SheetDescription>
+          </SheetHeader>
+          <AgentChat variant="panel" />
+        </SheetContent>
+      </Sheet>
+
       {isLoading ? (
         <CardContent>
           <ThreadSkeleton />
@@ -143,35 +169,47 @@ export function ThreadReader({
       {thread ? (
         <>
           <CardHeader className="border-b">
-            <div className="flex items-start justify-between gap-4">
-              <CardTitle className="min-w-0 text-xl">
-                {thread.subject}
-              </CardTitle>
-              {onClose ? (
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="shrink-0"
-                  aria-label="Close conversation"
-                  onClick={onClose}
-                >
-                  <X />
-                </Button>
-              ) : null}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <CardTitle className="text-xl">{thread.subject}</CardTitle>
+                <CardDescription className="mt-1">
+                  {thread.messageCount} message
+                  {thread.messageCount === 1 ? "" : "s"} in this conversation
+                </CardDescription>
+              </div>
+
+              <div className="flex shrink-0 items-start gap-1">
+                <ThreadActions
+                  threadId={thread.id}
+                  messageId={thread.messages.at(-1)?.id ?? null}
+                  unread={thread.unread}
+                  starred={thread.starred}
+                  onOpenAgent={() => {
+                    const latestMessage = thread.messages.at(-1);
+                    requestNewAgentChat({
+                      type: "gmail-thread",
+                      threadId: thread.id,
+                      subject: thread.subject,
+                      senderEmail: latestMessage?.from.email ?? null,
+                    });
+                    setAgentOpen(true);
+                  }}
+                  {...(onClose ? { onArchived: onClose } : {})}
+                />
+                {onClose ? (
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className="shrink-0"
+                    aria-label="Close conversation"
+                    onClick={onClose}
+                  >
+                    <X />
+                  </Button>
+                ) : null}
+              </div>
             </div>
-
-            <CardDescription>
-              {thread.messageCount} message
-              {thread.messageCount === 1 ? "" : "s"} in this conversation
-            </CardDescription>
-
-            <ThreadActions
-              threadId={thread.id}
-              messageId={thread.messages.at(-1)?.id ?? null}
-              unread={thread.unread}
-              {...(onClose ? { onArchived: onClose } : {})}
-            />
           </CardHeader>
 
           <CardContent className="max-w-full min-w-0 space-y-5 overflow-x-hidden">

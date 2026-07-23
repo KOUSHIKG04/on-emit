@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import {
+  ChartBar,
   Ghost2,
   CalendarDays,
   Inbox,
@@ -36,14 +37,19 @@ const viewDetails = {
     icon: CalendarDays,
   },
   "/search": {
-    label: "Search",
-    description: "Find Gmail conversations with advanced operators",
+    label: "Advanced Gmail search",
+    description: "Use Gmail operators and filters to find conversations",
     icon: Search,
   },
   "/settings": {
     label: "Settings",
-    description: "Manage Gmail, Calendar, and webhook connections",
+    description: "Manage Google accounts, connections, and AI preferences",
     icon: Settings,
+  },
+  "/analytics": {
+    label: "Analytics",
+    description: "Track inbox activity and your upcoming schedule",
+    icon: ChartBar,
   },
 } as const;
 

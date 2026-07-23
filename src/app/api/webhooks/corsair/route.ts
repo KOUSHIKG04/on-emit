@@ -2,7 +2,8 @@ import { processWebhook } from "corsair";
 import { NextResponse } from "next/server";
 
 import { corsair } from "@/server/corsair";
-import { connections } from "@/server/db";
+import { connections, db } from "@/server/db";
+import { getGoogleAccountOwnerUserId } from "@/server/integrations/google-accounts";
 import { verifyWebhookTenantToken } from "@/server/webhooks/tenant-token";
 
 export const runtime = "nodejs";
@@ -37,10 +38,11 @@ export async function POST(request: Request) {
     }
 
     try {
+      const userId = await getGoogleAccountOwnerUserId(db, tenantId);
       await connections.notify(
         "on_emit_realtime",
         JSON.stringify({
-          tenantId,
+          tenantId: userId,
           plugin: result.plugin,
           action: result.action,
           receivedAt: new Date().toISOString(),

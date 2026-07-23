@@ -150,10 +150,10 @@ export const calendarRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       try {
         await ensureCalendarConnected(
-          ctx.userId,
+          ctx.corsairTenantId,
           "Connect Google Calendar before loading events.",
         );
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
         const response = await tenantCorsair.googlecalendar.api.events.getMany({
           calendarId: "primary",
           timeMin: input.timeMin,
@@ -173,9 +173,7 @@ export const calendarRouter = createTRPCRouter({
 
             const attendees = (event.attendees ?? [])
               .filter(
-                (
-                  attendee,
-                ): attendee is typeof attendee & { email: string } =>
+                (attendee): attendee is typeof attendee & { email: string } =>
                   Boolean(attendee.email),
               )
               .map((attendee) => ({
@@ -198,7 +196,9 @@ export const calendarRouter = createTRPCRouter({
               attendees,
             };
           })
-          .filter((event): event is NonNullable<typeof event> => event !== null);
+          .filter(
+            (event): event is NonNullable<typeof event> => event !== null,
+          );
       } catch (error) {
         if (error instanceof TRPCError) throw error;
 
@@ -214,8 +214,8 @@ export const calendarRouter = createTRPCRouter({
     .input(updateEventInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureCalendarConnected(ctx.userId);
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        await ensureCalendarConnected(ctx.corsairTenantId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
         const schedule = input.allDay
           ? {
               start: { date: input.startsAt },
@@ -268,8 +268,8 @@ export const calendarRouter = createTRPCRouter({
     .input(deleteEventInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureCalendarConnected(ctx.userId);
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        await ensureCalendarConnected(ctx.corsairTenantId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
 
         await tenantCorsair.googlecalendar.api.events.delete({
           calendarId: "primary",
@@ -295,9 +295,9 @@ export const calendarRouter = createTRPCRouter({
     .input(createEventInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureCalendarConnected(ctx.userId);
+        await ensureCalendarConnected(ctx.corsairTenantId);
 
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
         const event = await tenantCorsair.googlecalendar.api.events.create({
           calendarId: "primary",
           event: {
@@ -341,11 +341,11 @@ export const calendarRouter = createTRPCRouter({
   upcoming: protectedProcedure.query(async ({ ctx }) => {
     try {
       await ensureCalendarConnected(
-        ctx.userId,
+        ctx.corsairTenantId,
         "Connect Google Calendar before loading events.",
       );
 
-      const tenantCorsair = getTenantCorsair(ctx.userId);
+      const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
 
       const now = new Date();
 

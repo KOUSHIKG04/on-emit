@@ -5,20 +5,41 @@ import { toast } from "sonner";
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronsUpDown,
+  ChevronRight,
   CircleAlert,
+  Copy,
   LoaderCircle,
   Mail,
+  Plus,
   RefreshCw,
-  Copy,
+  Trash2,
+  UserRound,
 } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api } from "@/trpc/client";
 import { cn } from "@/lib/utils";
 
@@ -28,36 +49,81 @@ type ConnectablePlugin = "gmail" | "googlecalendar";
 type Service = {
   plugin: ConnectablePlugin;
   name: string;
-  description: string;
   icon: React.ReactNode;
   state: ConnectionState;
 };
 
 export function IntegrationStatus({ className }: { className?: string }) {
-  const [redirectingPlugin, setRedirectingPlugin] =
-    useState<ConnectablePlugin | null>(null);
+  const utils = api.useUtils();
+  const [redirectingConnection, setRedirectingConnection] = useState<
+    string | null
+  >(null);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
   const statusQuery = api.integrations.status.useQuery(undefined, {
     refetchOnWindowFocus: true,
   });
-
   const webhookQuery = api.integrations.webhookConfig.useQuery();
 
   const connectMutation = api.integrations.connect.useMutation({
     onSuccess(data, variables) {
-      setRedirectingPlugin(variables.plugin);
+      setRedirectingConnection(
+        `${variables.accountId ?? "active"}:${variables.plugin}`,
+      );
       window.location.assign(data.connectUrl);
     },
     onError(error) {
-      setRedirectingPlugin(null);
+      setRedirectingConnection(null);
       toast.error(error.message);
     },
   });
 
+  const createAccountMutation =
+    api.integrations.createGoogleAccount.useMutation({
+      async onSuccess(account) {
+        await utils.integrations.status.invalidate();
+        connectMutation.mutate({ plugin: "gmail", accountId: account.id });
+      },
+      onError(error) {
+        toast.error(error.message);
+      },
+    });
+
+  const selectAccountMutation =
+    api.integrations.selectGoogleAccount.useMutation({
+      async onSuccess() {
+        await Promise.all([
+          utils.integrations.invalidate(),
+          utils.gmail.invalidate(),
+          utils.calendar.invalidate(),
+          utils.account.invalidate(),
+        ]);
+        toast.success("Active Google account changed.");
+      },
+      onError(error) {
+        toast.error(error.message);
+      },
+    });
+
+  const removeAccountMutation =
+    api.integrations.removeGoogleAccount.useMutation({
+      async onSuccess() {
+        setRemoveDialogOpen(false);
+        await Promise.all([
+          utils.integrations.invalidate(),
+          utils.gmail.invalidate(),
+          utils.calendar.invalidate(),
+          utils.account.invalidate(),
+        ]);
+        toast.success("Google account removed.");
+      },
+      onError(error) {
+        toast.error(error.message);
+      },
+    });
+
   useEffect(() => {
-    if (statusQuery.data) {
-      setRedirectingPlugin(null);
-    }
+    if (statusQuery.data) setRedirectingConnection(null);
   }, [statusQuery.data]);
 
   useEffect(() => {
@@ -68,56 +134,149 @@ export function IntegrationStatus({ className }: { className?: string }) {
     if (webhookQuery.error) toast.error(webhookQuery.error.message);
   }, [webhookQuery.error]);
 
-  const services: Service[] = statusQuery.data
+  const activeAccount = statusQuery.data?.accounts.find(
+    (account) => account.id === statusQuery.data.activeAccountId,
+  );
+  const services: Service[] = activeAccount
     ? [
         {
           plugin: "gmail",
           name: "Gmail",
-          description: "Read, search, draft, and send email through Corsair.",
           icon: <Mail className="size-5" />,
-          state: statusQuery.data.gmail,
+          state: activeAccount.gmail,
         },
         {
           plugin: "googlecalendar",
           name: "Google Calendar",
-          description: "Manage events, updates, and meeting invitations.",
           icon: <CalendarDays className="size-5" />,
-          state: statusQuery.data.googleCalendar,
+          state: activeAccount.googleCalendar,
         },
       ]
     : [];
 
   function connect(plugin: ConnectablePlugin) {
-    setRedirectingPlugin(plugin);
-    connectMutation.mutate({ plugin });
+    if (!activeAccount) return;
+    const connection = `${activeAccount.id}:${plugin}`;
+    setRedirectingConnection(connection);
+    connectMutation.mutate({ plugin, accountId: activeAccount.id });
   }
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="space-y-1.5">
-          <CardTitle>Connected services</CardTitle>
-          <CardDescription>
-            Each connection is isolated using your authenticated Supabase user
-            ID as its Corsair tenant ID.
-          </CardDescription>
-        </div>
+    <Card className={cn("gap-0 overflow-hidden py-0", className)}>
+      <CardHeader className="border-b p-5 md:p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1">
+            <CardTitle>Google accounts</CardTitle>
+          </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          disabled={statusQuery.isFetching}
-          aria-label="Refresh connection status"
-          onClick={() => void statusQuery.refetch()}
-        >
-          <RefreshCw
-            className={statusQuery.isFetching ? "animate-spin" : undefined}
-          />
-        </Button>
+          <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="min-w-60 flex-1 justify-between xl:flex-none"
+                    disabled={
+                      statusQuery.isLoading || selectAccountMutation.isPending
+                    }
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <UserRound className="size-4 shrink-0" />
+                      <span className="truncate">
+                        {activeAccount?.label ?? "Choose Google account"}
+                      </span>
+                    </span>
+                    {selectAccountMutation.isPending ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <ChevronsUpDown className="size-4 opacity-60" />
+                    )}
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="min-w-64">
+                <DropdownMenuLabel>Active Google account</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={statusQuery.data?.activeAccountId}
+                  onValueChange={(accountId) => {
+                    if (
+                      typeof accountId === "string" &&
+                      accountId !== statusQuery.data?.activeAccountId
+                    ) {
+                      selectAccountMutation.mutate({ accountId });
+                    }
+                  }}
+                >
+                  {statusQuery.data?.accounts.map((account) => (
+                    <DropdownMenuRadioItem
+                      key={account.id}
+                      value={account.id}
+                      className="py-2"
+                    >
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate">{account.label}</span>
+                        <span className="text-muted-foreground text-xs">
+                          Gmail {connectionSummary(account.gmail)} · Calendar{" "}
+                          {connectionSummary(account.googleCalendar)}
+                        </span>
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>
+                  Each account keeps separate OAuth connections.
+                </DropdownMenuLabel>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              type="button"
+              disabled={
+                createAccountMutation.isPending || connectMutation.isPending
+              }
+              onClick={() => createAccountMutation.mutate({})}
+            >
+              {createAccountMutation.isPending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <Plus />
+              )}
+              Add account
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              disabled={statusQuery.isFetching}
+              aria-label="Refresh connection status"
+              onClick={() => void statusQuery.refetch()}
+            >
+              <RefreshCw
+                className={statusQuery.isFetching ? "animate-spin" : undefined}
+              />
+            </Button>
+
+            {activeAccount && activeAccount.id !== "legacy" ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                disabled={removeAccountMutation.isPending}
+                aria-label={`Remove ${activeAccount.label}`}
+                title={`Remove ${activeAccount.label}`}
+                onClick={() => setRemoveDialogOpen(true)}
+              >
+                <Trash2 />
+              </Button>
+            ) : null}
+          </div>
+        </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 p-5 md:p-6">
         {statusQuery.isLoading ? (
           <div className="text-muted-foreground flex items-center gap-2 rounded-xl border p-4 text-sm">
             <LoaderCircle className="size-4 animate-spin" />
@@ -125,18 +284,22 @@ export function IntegrationStatus({ className }: { className?: string }) {
           </div>
         ) : null}
 
-        {services.map((service) => (
-          <ConnectionRow
-            key={service.plugin}
-            service={service}
-            isConnecting={
-              redirectingPlugin === service.plugin ||
-              (connectMutation.isPending &&
-                connectMutation.variables?.plugin === service.plugin)
-            }
-            onConnect={() => connect(service.plugin)}
-          />
-        ))}
+        <div className="grid gap-3 xl:grid-cols-2">
+          {services.map((service) => (
+            <ConnectionRow
+              key={service.plugin}
+              service={service}
+              isConnecting={
+                redirectingConnection ===
+                  `${activeAccount?.id}:${service.plugin}` ||
+                (connectMutation.isPending &&
+                  connectMutation.variables?.plugin === service.plugin &&
+                  connectMutation.variables.accountId === activeAccount?.id)
+              }
+              onConnect={() => connect(service.plugin)}
+            />
+          ))}
+        </div>
 
         {webhookQuery.isLoading ? (
           <div className="text-muted-foreground flex items-center gap-2 rounded-xl border p-4 text-sm">
@@ -146,40 +309,88 @@ export function IntegrationStatus({ className }: { className?: string }) {
         ) : null}
 
         {webhookQuery.data ? (
-          <div className="bg-muted/40 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Realtime webhook endpoint</p>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Add this protected URL to the Corsair Gmail and Calendar webhook
-                setup.
-              </p>
-              <code className="text-muted-foreground mt-2 block max-w-full truncate text-xs">
-                {webhookQuery.data.url}
-              </code>
-            </div>
+          <Collapsible className="rounded-lg border">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium">
+              <span>Realtime webhook endpoint</span>
+              <ChevronRight className="text-muted-foreground size-4 transition-transform group-data-panel-open:rotate-90" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="flex flex-col gap-2 border-t p-3 sm:flex-row sm:items-center">
+                <code className="bg-muted text-muted-foreground min-w-0 flex-1 truncate rounded-md px-3 py-2 text-xs">
+                  {webhookQuery.data.url}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full shrink-0 sm:w-auto"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        webhookQuery.data.url,
+                      );
+                      toast.success("Webhook URL copied.");
+                    } catch {
+                      toast.error(
+                        "Could not copy the webhook URL. Select and copy it manually.",
+                      );
+                    }
+                  }}
+                >
+                  <Copy />
+                  Copy
+                </Button>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null}
+      </CardContent>
+
+      <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove Google account?</DialogTitle>
+            <DialogDescription>
+              This removes the selected Gmail and Calendar connections from On
+              Emit.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              className="shrink-0"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(webhookQuery.data.url);
-                  toast.success("Webhook URL copied.");
-                } catch {
-                  toast.error(
-                    "Could not copy the webhook URL. Select and copy it manually.",
-                  );
-                }
+              disabled={removeAccountMutation.isPending}
+              onClick={() => setRemoveDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!activeAccount || removeAccountMutation.isPending}
+              onClick={() => {
+                if (!activeAccount) return;
+                removeAccountMutation.mutate({ accountId: activeAccount.id });
               }}
             >
-              <Copy />
-              Copy URL
+              {removeAccountMutation.isPending ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                <Trash2 />
+              )}
+              Remove account
             </Button>
-          </div>
-        ) : null}
-      </CardContent>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
+}
+
+function connectionSummary(state: ConnectionState) {
+  if (state === "connected") return "connected";
+  if (state === "missing_credentials") return "needs setup";
+  return "not connected";
 }
 
 type ConnectionRowProps = {
@@ -197,8 +408,8 @@ function ConnectionRow({
   const isMissingCredentials = service.state === "missing_credentials";
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
+    <div className="flex h-full flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
           {service.icon}
         </div>
@@ -208,11 +419,6 @@ function ConnectionRow({
             <p className="font-medium">{service.name}</p>
             <ConnectionBadge state={service.state} />
           </div>
-          <p className="text-muted-foreground mt-1 text-sm leading-5">
-            {isMissingCredentials
-              ? "OAuth credentials must be configured in Corsair before this service can connect."
-              : service.description}
-          </p>
         </div>
       </div>
 
@@ -220,7 +426,7 @@ function ConnectionRow({
         type="button"
         variant={isConnected ? "outline" : "default"}
         disabled={isConnecting || isMissingCredentials}
-        className="shrink-0 sm:min-w-28"
+        className="w-full shrink-0 sm:w-auto sm:min-w-28"
         onClick={onConnect}
       >
         {isConnecting ? (
