@@ -8,8 +8,18 @@ export type AgentConversationSummary = {
   title: string;
   updatedAt: number;
 };
+export type AgentConversationContext = {
+  type: "gmail-thread";
+  threadId: string;
+  subject: string;
+  senderEmail: string | null;
+};
 export type AgentChatCommand =
-  | { id: number; type: "create" }
+  | {
+      id: number;
+      type: "create";
+      context?: AgentConversationContext;
+    }
   | { id: number; type: "delete"; conversationId: string };
 
 export type WorkspaceState = {
@@ -41,7 +51,7 @@ export type WorkspaceActions = {
     summaries: AgentConversationSummary[],
   ) => void;
   setActiveAgentConversationId: (conversationId: string | null) => void;
-  requestNewAgentChat: () => void;
+  requestNewAgentChat: (context?: AgentConversationContext) => void;
   requestDeleteAgentChat: (conversationId: string) => void;
   clearAgentChatCommand: (commandId: number) => void;
   setCalendarDate: (date: string) => void;
@@ -117,11 +127,12 @@ export function createWorkspaceStore(
       set({ activeAgentConversationId });
     },
 
-    requestNewAgentChat: () => {
+    requestNewAgentChat: (context) => {
       set((state) => ({
         agentChatCommand: {
           id: (state.agentChatCommand?.id ?? 0) + 1,
           type: "create",
+          ...(context ? { context } : {}),
         },
       }));
     },

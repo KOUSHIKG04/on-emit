@@ -37,13 +37,6 @@ export default async function WorkspaceLayout({
       : typeof metadata.name === "string"
         ? metadata.name
         : (email.split("@")[0] ?? "On Emit user");
-  const avatar =
-    typeof metadata.avatar_url === "string"
-      ? metadata.avatar_url
-      : typeof metadata.picture === "string"
-        ? metadata.picture
-        : undefined;
-
   return (
     <WorkspaceStoreProvider>
       <Toaster position="top-right" richColors />
@@ -56,7 +49,6 @@ export default async function WorkspaceLayout({
           user={{
             name,
             email,
-            ...(avatar ? { avatar } : {}),
           }}
         />
 

@@ -4,13 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Archive,
+  CalendarPlus,
   CheckCircle2,
   FileText,
+  Ghost2,
   LoaderCircle,
   Mail,
   MailOpen,
   Reply,
   Send,
+  Star,
+  Trash2,
   X,
 } from "@/components/icons";
 
@@ -25,6 +29,8 @@ type ThreadActionsProps = {
   threadId: string;
   messageId: string | null;
   unread: boolean;
+  starred: boolean;
+  onOpenAgent: () => void;
   onArchived?: () => void;
 };
 
@@ -32,7 +38,8 @@ type ReplyFormValues = {
   body: string;
 };
 
-type ThreadAction = "archive" | "mark_read" | "mark_unread";
+type ThreadAction =
+  "archive" | "mark_read" | "mark_unread" | "star" | "unstar" | "trash";
 
 function isEditableTarget(target: EventTarget | null) {
   return (
@@ -47,34 +54,50 @@ export function ThreadActions({
   threadId,
   messageId,
   unread,
+  starred,
+  onOpenAgent,
   onArchived,
 }: ThreadActionsProps) {
   const [replyOpen, setReplyOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const selectThread = useWorkspaceStore((state) => state.selectThread);
+  const setQuickActionMode = useWorkspaceStore(
+    (state) => state.setQuickActionMode,
+  );
+  const setCommandPaletteOpen = useWorkspaceStore(
+    (state) => state.setCommandPaletteOpen,
+  );
   const utils = api.useUtils();
 
   const actionMutation = api.gmail.threadAction.useMutation({
     async onSuccess(data) {
-      const msg =
-        data.action === "archive"
-          ? "Conversation archived."
-          : data.action === "mark_read"
-            ? "Conversation marked as read."
-            : "Conversation marked as unread.";
+      const messages = {
+        archive: "Conversation archived.",
+        mark_read: "Conversation marked as read.",
+        mark_unread: "Conversation marked as unread.",
+        star: "Conversation starred.",
+        unstar: "Star removed.",
+        trash: "Conversation moved to trash.",
+        unarchive: "Conversation restored.",
+      } as const;
+      const msg = messages[data.action];
 
       setFeedback(msg);
-      if (data.action === "archive") {
-        toast.success("Archived", {
-          description: "Conversation moved out of inbox.",
+      if (data.action === "archive" || data.action === "trash") {
+        toast.success(data.action === "trash" ? "Moved to Trash" : "Archived", {
+          description: msg,
         });
       } else {
         toast.info("Thread Updated", { description: msg });
       }
 
-      await utils.gmail.inbox.invalidate();
+      await Promise.all([
+        utils.gmail.inbox.invalidate(),
+        utils.gmail.archived.invalidate(),
+        utils.gmail.stats.invalidate(),
+      ]);
 
-      if (data.action === "archive") {
+      if (data.action === "archive" || data.action === "trash") {
         if (onArchived) {
           onArchived();
         } else {
@@ -134,44 +157,96 @@ export function ThreadActions({
   }, [messageId]);
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-3">
+      <div className="bg-muted/45 flex flex-wrap items-center gap-1 rounded-lg border p-1">
         <Button
           type="button"
-          size="sm"
+          size="icon-sm"
+          variant="ghost"
           disabled={!messageId}
+          title="Reply"
+          aria-label="Reply"
           onClick={() => setReplyOpen((open) => !open)}
         >
           <Reply />
-          Reply
-          <kbd className="bg-primary-foreground/15 ml-1 rounded px-1 font-mono text-[10px]">
-            R
-          </kbd>
         </Button>
 
         <Button
           type="button"
-          size="sm"
-          variant="outline"
+          size="icon-sm"
+          variant="ghost"
+          title="Schedule an event"
+          aria-label="Schedule an event"
+          onClick={() => {
+            setQuickActionMode("event");
+            setCommandPaletteOpen(true);
+          }}
+        >
+          <CalendarPlus />
+        </Button>
+
+        <span className="bg-border mx-1 h-5 w-px" aria-hidden />
+
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          title={starred ? "Remove star" : "Star conversation"}
+          aria-label={starred ? "Remove star" : "Star conversation"}
+          disabled={actionMutation.isPending}
+          onClick={() => runAction(starred ? "unstar" : "star")}
+        >
+          <Star className={starred ? "fill-current text-amber-400" : ""} />
+        </Button>
+
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          title="Open email agent"
+          aria-label="Open email agent"
+          onClick={onOpenAgent}
+        >
+          <Ghost2 />
+        </Button>
+
+        <span className="bg-border mx-1 h-5 w-px" aria-hidden />
+
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          title="Archive conversation"
+          aria-label="Archive conversation"
           disabled={actionMutation.isPending}
           onClick={() => runAction("archive")}
         >
           <Archive />
-          Archive
-          <kbd className="bg-muted ml-1 rounded px-1 font-mono text-[10px]">
-            E
-          </kbd>
         </Button>
 
         <Button
           type="button"
-          size="sm"
-          variant="outline"
+          size="icon-sm"
+          variant="ghost"
+          title={unread ? "Mark as read" : "Mark as unread"}
+          aria-label={unread ? "Mark as read" : "Mark as unread"}
           disabled={actionMutation.isPending}
           onClick={() => runAction(unread ? "mark_read" : "mark_unread")}
         >
           {unread ? <MailOpen /> : <Mail />}
-          {unread ? "Mark read" : "Mark unread"}
+        </Button>
+
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          title="Move to trash"
+          aria-label="Move to trash"
+          disabled={actionMutation.isPending}
+          onClick={() => runAction("trash")}
+        >
+          <Trash2 />
         </Button>
 
         {actionMutation.isPending ? (

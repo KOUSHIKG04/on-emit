@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import {
   AlertCircle,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Mail,
   MailOpen,
@@ -21,6 +22,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -202,31 +208,89 @@ export function GmailSearch({
           : "mx-auto min-h-[640px] w-full max-w-5xl",
       )}
     >
+      {variant === "panel" ? (
+        <Collapsible defaultOpen className="shrink-0 border-b">
+          <div className="flex h-16 items-center justify-between gap-2 px-4">
+            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-2 text-left">
+              <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-data-panel-open:rotate-90" />
+              <Clock3 className="text-muted-foreground size-3.5 shrink-0" />
+              <span className="truncate text-xs font-semibold uppercase">
+                Recent searches
+              </span>
+              <span className="bg-muted text-muted-foreground ml-auto rounded-full px-2 py-0.5 text-[11px] tabular-nums">
+                {recentSearches.length}
+              </span>
+            </CollapsibleTrigger>
+
+            {recentSearches.length > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 shrink-0 px-2 text-xs"
+                onClick={clearHistory}
+              >
+                <X className="size-3.5" />
+                Clear
+              </Button>
+            ) : null}
+          </div>
+
+          <CollapsibleContent>
+            <div className="border-t px-4 py-3">
+              {recentSearches.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {recentSearches.map((query) => (
+                    <Button
+                      key={query}
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="max-w-full"
+                      onClick={() => applyQuery(query)}
+                    >
+                      <span className="truncate">{query}</span>
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  Your recent Gmail searches will appear here.
+                </p>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
+
       <CardHeader
         className={cn(
           "shrink-0 border-b p-4 sm:p-5",
+          variant === "panel" && "pb-2 sm:pb-2",
           variant === "page" && "p-7 md:p-9",
         )}
       >
-        <div className="flex items-start gap-3">
-          <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
-            <Search className="size-4" />
+        {variant === "page" ? (
+          <div className="flex items-start gap-3">
+            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-md">
+              <Search className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="text-base font-semibold sm:text-lg">
+                Advanced Gmail search
+              </CardTitle>
+              <CardDescription className="mt-0.5 text-xs">
+                Use Gmail operators or select filters below. Press / to focus
+                search.
+              </CardDescription>
+            </div>
           </div>
-          <div className="min-w-0">
-            <CardTitle className="text-base font-semibold sm:text-lg">
-              Advanced Gmail search
-            </CardTitle>
-            <CardDescription className="mt-0.5 text-xs">
-              Use Gmail operators or select filters below. Press / to focus
-              search.
-            </CardDescription>
-          </div>
-        </div>
+        ) : null}
 
         <form
           className={cn(
-            "mt-3 flex flex-col gap-2 sm:flex-row",
-            variant === "page" && "md:mt-6",
+            "flex flex-col gap-2 sm:flex-row",
+            variant === "page" && "mt-3 md:mt-6",
           )}
           onSubmit={handleSubmit(runSearch)}
           noValidate
@@ -336,7 +400,7 @@ export function GmailSearch({
       </CardHeader>
 
       <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-0">
-        {!submittedQuery && recentSearches.length > 0 ? (
+        {variant === "page" && !submittedQuery && recentSearches.length > 0 ? (
           <div className={cn("border-b p-4", variant === "page" && "p-7")}>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-muted-foreground flex items-center gap-2 text-xs font-semibold uppercase">

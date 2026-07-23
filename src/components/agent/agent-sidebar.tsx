@@ -47,7 +47,11 @@ export function AgentSidebar() {
   return (
     <div className="bg-sidebar text-sidebar-foreground flex h-full min-w-0 flex-1 flex-col overflow-hidden">
       <div className="flex h-16 shrink-0 items-center border-b px-3">
-        <Button type="button" className="w-full" onClick={requestNewChat}>
+        <Button
+          type="button"
+          className="w-full"
+          onClick={() => requestNewChat()}
+        >
           <Plus />
           New chat
         </Button>

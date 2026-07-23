@@ -6,18 +6,23 @@ import {
   type AgentInputItem,
 } from "@openai/agents";
 import { OpenAIAgentsProvider } from "@corsair-dev/mcp";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { env } from "@/env";
-import { isGeminiModel } from "@/lib/gemini";
+import {
+  DEFAULT_AI_PROVIDER,
+  getAiProviderLabel,
+  getDefaultAiModel,
+  isAiProvider,
+  type AiProvider,
+} from "@/lib/ai-providers";
 import { decryptApiKey } from "@/server/ai/api-key-crypto";
+import { isMissingAiSettingsSchema } from "@/server/ai/settings-db";
 import { getTenantCorsair } from "@/server/corsair";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { corsairAiSettings } from "@/server/db/schema";
-
-const geminiModelSchema = z.enum(["gemini-3.5-flash", "gemini-3.5-flash-lite"]);
+import { corsairAiProviderKeys, corsairAiSettings } from "@/server/db/schema";
 
 const imageAttachmentSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -33,7 +38,6 @@ const chatInput = z
     message: z.string().trim().max(4_000),
     attachments: z.array(imageAttachmentSchema).max(3).default([]),
     confirmed: z.boolean().default(false),
-    model: geminiModelSchema.optional(),
   })
   .refine((input) => input.message.length > 0 || input.attachments.length > 0, {
     message: "Enter a request or attach an image.",
@@ -41,29 +45,71 @@ const chatInput = z
   });
 
 const AGENT_TIMEOUT_MS = 60_000;
-const GEMINI_OPENAI_BASE_URL =
-  "https://generativelanguage.googleapis.com/v1beta/openai/";
+const PROVIDER_BASE_URLS: Record<AiProvider, string> = {
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  openrouter: "https://openrouter.ai/api/v1",
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1/",
+};
 const QUEUE_ACTION_MARKER = "[QUEUE_ACTION]";
 const WRITE_TOOL_NAME_PATTERN =
   /(send|draft|create|update|delete|modify|archive|trash|untrash|reply|forward|move|mark|schedule|cancel)/i;
 
 export const agentRouter = createTRPCRouter({
   chat: protectedProcedure.input(chatInput).mutation(async ({ ctx, input }) => {
-    const [settings] = await ctx.db
-      .select()
-      .from(corsairAiSettings)
-      .where(eq(corsairAiSettings.userId, ctx.userId))
-      .limit(1);
+    let settings: typeof corsairAiSettings.$inferSelect | undefined;
 
-    let apiKey = env.GEMINI_API_KEY;
-    if (settings?.encryptedApiKey) {
+    try {
+      [settings] = await ctx.db
+        .select()
+        .from(corsairAiSettings)
+        .where(eq(corsairAiSettings.userId, ctx.userId))
+        .limit(1);
+    } catch (error) {
+      if (!isMissingAiSettingsSchema(error)) throw error;
+    }
+
+    const usingByok = settings?.source === "byok";
+    const provider =
+      usingByok && isAiProvider(settings?.provider)
+        ? settings.provider
+        : DEFAULT_AI_PROVIDER;
+    const providerLabel = getAiProviderLabel(provider);
+    const model = usingByok
+      ? (settings?.model ?? getDefaultAiModel(provider))
+      : env.GEMINI_AGENT_MODEL;
+    let encryptedApiKey: string | null | undefined;
+
+    if (usingByok) {
+      const [providerKey] = await ctx.db
+        .select({
+          encryptedApiKey: corsairAiProviderKeys.encryptedApiKey,
+        })
+        .from(corsairAiProviderKeys)
+        .where(
+          and(
+            eq(corsairAiProviderKeys.userId, ctx.userId),
+            eq(corsairAiProviderKeys.provider, provider),
+          ),
+        )
+        .limit(1);
+
+      encryptedApiKey =
+        providerKey?.encryptedApiKey ?? settings?.encryptedApiKey;
+    }
+
+    let apiKey = usingByok ? undefined : env.GEMINI_API_KEY;
+    if (encryptedApiKey) {
       try {
-        apiKey = decryptApiKey(settings.encryptedApiKey);
+        apiKey = decryptApiKey(encryptedApiKey);
       } catch (error) {
-        console.error("Could not decrypt the saved Gemini key:", error);
+        console.error(
+          `Could not decrypt the saved ${providerLabel} key:`,
+          error,
+        );
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "Replace your saved Gemini API key in Settings.",
+          message: `Replace your saved ${providerLabel} API key in Settings.`,
         });
       }
     }
@@ -71,20 +117,13 @@ export const agentRouter = createTRPCRouter({
     if (!apiKey) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: "Add a Gemini API key in Settings to use agent chat.",
+        message: `Add a ${providerLabel} API key in Settings to use agent chat.`,
       });
     }
 
-    const usingByok = Boolean(settings?.encryptedApiKey);
-    const model = usingByok
-      ? (input.model ??
-        (isGeminiModel(settings?.model)
-          ? settings.model
-          : env.GEMINI_AGENT_MODEL))
-      : env.GEMINI_AGENT_MODEL;
     const modelProvider = new OpenAIProvider({
       apiKey,
-      baseURL: GEMINI_OPENAI_BASE_URL,
+      baseURL: PROVIDER_BASE_URLS[provider],
       useResponses: false,
     });
     const runner = new Runner({
@@ -99,8 +138,8 @@ export const agentRouter = createTRPCRouter({
 
     try {
       const corsairTools = new OpenAIAgentsProvider().build({
-        corsair: getTenantCorsair(ctx.userId),
-        tenantId: ctx.userId,
+        corsair: getTenantCorsair(ctx.corsairTenantId),
+        tenantId: ctx.corsairTenantId,
         setup: false,
         tool,
       });
@@ -157,18 +196,19 @@ ${
         reply,
         requiresApproval,
         model,
+        provider,
       };
     } catch (error) {
       if (timeoutController.signal.aborted) {
         throw new TRPCError({
           code: "TIMEOUT",
-          message: "Gemini exceeded the 60-second time limit.",
+          message: `${providerLabel} exceeded the 60-second time limit.`,
         });
       }
 
       if (error instanceof TRPCError) throw error;
 
-      console.error("Corsair Gemini agent failed:", error);
+      console.error(`Corsair ${providerLabel} agent failed:`, error);
       const errorMessage = error instanceof Error ? error.message : "";
       if (
         /api.?key|authentication|unauthorized|\b401\b|\b403\b/i.test(
@@ -177,19 +217,19 @@ ${
       ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Gemini rejected the API key. Update it in Settings.",
+          message: `${providerLabel} rejected the API key. Update it in Settings.`,
         });
       }
       if (/rate.?limit|quota|\b429\b/i.test(errorMessage)) {
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",
-          message: "Gemini is rate limited. Try again shortly.",
+          message: `${providerLabel} is rate limited. Try again shortly.`,
         });
       }
 
       throw new TRPCError({
         code: "BAD_GATEWAY",
-        message: "Gemini could not complete this request.",
+        message: `${providerLabel} could not complete this request.`,
       });
     } finally {
       clearTimeout(timeout);

@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/server/db";
+import { getActiveCorsairTenantId } from "@/server/integrations/google-accounts";
 
 /**
  * 1. CONTEXT
@@ -125,10 +126,13 @@ export const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
     });
   }
 
+  const corsairTenantId = await getActiveCorsairTenantId(ctx.db, ctx.userId);
+
   return next({
     ctx: {
       ...ctx,
       userId: ctx.userId,
+      corsairTenantId,
     },
   });
 });

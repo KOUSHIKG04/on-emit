@@ -1,13 +1,15 @@
 "use client";
 
-import { ChevronsUpDown, LogOut, UserRound } from "@/components/icons";
+import Link from "next/link";
+import { ChevronsUpDown, Home, LogOut, UserRound } from "@/components/icons";
 
 import { signOut } from "@/server/actions/auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -23,25 +25,17 @@ type NavUserProps = {
   user: {
     name: string;
     email: string;
-    avatar?: string;
   };
   compact?: boolean;
 };
 
-function getInitials(name: string) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-
-  return initials || "OE";
+function getInitial(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "O";
 }
 
 export function NavUser({ user, compact = false }: NavUserProps) {
   const { isMobile } = useSidebar();
-  const initials = getInitials(user.name);
+  const initial = getInitial(user.name);
 
   return (
     <SidebarMenu>
@@ -53,18 +47,23 @@ export function NavUser({ user, compact = false }: NavUserProps) {
                 size="lg"
                 className={
                   compact
-                    ? "data-open:bg-sidebar-accent justify-center group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0! md:h-10 md:p-0"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground data-open:bg-sidebar-accent hover:bg-sidebar-accent justify-center font-semibold shadow-xs group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0! md:h-10 md:p-0"
                     : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 }
               />
             }
           >
-            <Avatar className="ring-border size-9 rounded-xl ring-1">
-              {user.avatar ? (
-                <AvatarImage src={user.avatar} alt={user.name} />
-              ) : null}
-              <AvatarFallback className="rounded-xl">{initials}</AvatarFallback>
-            </Avatar>
+            {compact ? (
+              <span className="text-sidebar-accent-foreground flex size-full items-center justify-center text-sm font-semibold">
+                {initial}
+              </span>
+            ) : (
+              <Avatar className="bg-sidebar-accent ring-sidebar-border size-9 rounded-xl shadow-xs ring-1 after:rounded-xl">
+                <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground rounded-xl text-sm font-semibold">
+                  {initial}
+                </AvatarFallback>
+              </Avatar>
+            )}
 
             <div
               className={
@@ -89,12 +88,9 @@ export function NavUser({ user, compact = false }: NavUserProps) {
             <DropdownMenuGroup>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex items-center gap-3 py-1.5">
-                  <Avatar className="ring-border size-10 rounded-xl ring-1">
-                    {user.avatar ? (
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                    ) : null}
-                    <AvatarFallback className="rounded-xl">
-                      {initials}
+                  <Avatar className="bg-sidebar-accent ring-sidebar-border size-10 rounded-xl shadow-sm ring-1 after:rounded-xl">
+                    <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground rounded-xl font-semibold">
+                      {initial}
                     </AvatarFallback>
                   </Avatar>
 
@@ -116,6 +112,13 @@ export function NavUser({ user, compact = false }: NavUserProps) {
                 Supabase authenticated
               </div>
             </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem render={<Link href="/" />}>
+              <Home className="size-4" />
+              Landing page
+            </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 

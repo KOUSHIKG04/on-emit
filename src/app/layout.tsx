@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { TRPCReactProvider } from "@/trpc/react";
+import { env } from "@/env";
 import "@/styles/globals.css";
 
 const geistSans = Geist({
@@ -14,8 +15,27 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "On Emit",
-  description: "A fast Gmail and Google Calendar command center.",
+  metadataBase: new URL(env.APP_URL),
+  title: {
+    default: "On Emit — Gmail and Calendar, directed by you",
+    template: "%s · On Emit",
+  },
+  description:
+    "A focused Gmail and Google Calendar command center with multi-account support and your choice of AI model.",
+  openGraph: {
+    title: "On Emit — Make the day answer to you",
+    description:
+      "Gmail, Google Calendar, and your preferred AI in one focused command center.",
+    type: "website",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "On Emit — Make the day answer to you",
+    description:
+      "Gmail, Google Calendar, and your preferred AI in one focused command center.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({

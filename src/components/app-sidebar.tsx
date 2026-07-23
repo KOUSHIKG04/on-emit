@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { TablerIcon } from "@/components/icons";
 import {
+  ChartBar,
   Ghost2,
   CalendarDays,
   Inbox,
@@ -40,7 +41,6 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   user: {
     name: string;
     email: string;
-    avatar?: string;
   };
 };
 
@@ -59,6 +59,7 @@ const primaryItems: WorkspaceItem[] = [
 
 const utilityItems: WorkspaceItem[] = [
   { title: "Advanced search", href: "/search", icon: Search },
+  { title: "Analytics", href: "/analytics", icon: ChartBar },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -107,13 +108,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     <Sidebar
       collapsible="icon"
       className="overflow-hidden *:data-[sidebar=sidebar]:flex-row"
-      style={
-        {
-          ...props.style,
-          "--sidebar-width":
-            pathname === "/agent" ? "385px" : `${sidebarWidth}px`,
-        } as React.CSSProperties
-      }
       {...props}
     >
       <Sidebar
@@ -199,7 +193,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               );
             })}
           </SidebarMenu>
-          <NavUser user={user} />
+          <NavUser user={user} compact />
         </SidebarFooter>
       </Sidebar>
 

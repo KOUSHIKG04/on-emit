@@ -1,114 +1,88 @@
-import { CalendarDays, Command, Mail, Sparkles, Zap } from "@/components/icons";
+"use client";
+
+import Link from "next/link";
 
 import { LoginForm as GoogleLoginForm } from "@/components/auth/google-login-form";
-import { Card, CardContent } from "@/components/ui/card";
-import { FieldDescription } from "@/components/ui/field";
+import {
+  FieldDescription,
+  FieldGroup,
+  FieldSeparator,
+} from "@/components/ui/field";
+import { ShieldCheck } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
-const workflowHighlights = [
-  {
-    icon: Mail,
-    title: "Gmail, without the busywork",
-    description: "Search, read, and act on real conversations through Corsair.",
-  },
-  {
-    icon: CalendarDays,
-    title: "Calendar in context",
-    description: "See upcoming events beside the messages that matter.",
-  },
-  {
-    icon: Command,
-    title: "Built for keyboard flow",
-    description: "Move between focused views without losing momentum.",
-  },
-];
+type LoginFormProps = React.ComponentProps<"div"> & {
+  mode: "login" | "signup";
+  nextPath: string;
+  errorCode?: string;
+};
+
+const authErrors: Record<string, string> = {
+  missing_oauth_code:
+    "Google sign-in was cancelled or did not return an authorization code.",
+  oauth_callback_failed:
+    "We could not finish signing you in. Please try Google again.",
+};
 
 export function LoginForm({
+  mode,
+  nextPath,
+  errorCode,
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: LoginFormProps) {
+  const isSignup = mode === "signup";
+  const alternateHref = isSignup
+    ? `/login?next=${encodeURIComponent(nextPath)}`
+    : `/signup?next=${encodeURIComponent(nextPath)}`;
+  const errorMessage = errorCode ? authErrors[errorCode] : undefined;
+
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="border-border/70 overflow-hidden p-0 shadow-2xl shadow-black/10">
-        <CardContent className="grid p-0 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
-          <section className="flex flex-col justify-center p-7 sm:p-10 lg:p-12">
-            <div className="mb-10 flex items-center gap-3">
-              <div className="bg-primary text-primary-foreground flex size-10 items-center justify-center rounded-xl shadow-sm">
-                <Zap className="size-5" />
-              </div>
-              <div>
-                <p className="text-lg font-semibold tracking-tight">On Emit</p>
-                <p className="text-muted-foreground text-xs">
-                  Mail command center
-                </p>
-              </div>
-            </div>
+    <div className={cn("flex flex-col gap-7", className)} {...props}>
+      <div className="space-y-2 text-center lg:text-left">
+        <h1 className="text-3xl font-semibold tracking-[-0.04em]">
+          {isSignup ? "Create your workspace" : "Welcome back"}
+        </h1>
+        <p className="text-muted-foreground text-sm leading-6">
+          {isSignup
+            ? "Use your Google account to create a private On Emit workspace."
+            : "Sign in with the Google account connected to your workspace."}
+        </p>
+      </div>
 
-            <div className="mb-8 max-w-md">
-              <div className="text-primary mb-3 flex items-center gap-2 text-xs font-semibold tracking-[0.18em] uppercase">
-                <Sparkles className="size-4" />
-                Your workflow, your way
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Email and calendar finally work together.
-              </h1>
-              <p className="text-muted-foreground mt-3 text-sm leading-6 sm:text-base">
-                Sign in with the Google account you want to use. Supabase keeps
-                your app identity separate while Corsair connects Gmail and
-                Google Calendar.
-              </p>
-            </div>
+      {errorMessage ? (
+        <div
+          role="alert"
+          className="border-destructive/35 bg-destructive/8 text-destructive rounded-xl border px-4 py-3 text-sm"
+        >
+          {errorMessage}
+        </div>
+      ) : null}
 
-            <GoogleLoginForm />
+      <FieldGroup>
+        <GoogleLoginForm mode={mode} nextPath={nextPath} />
+        <FieldSeparator>Secure Google OAuth</FieldSeparator>
+        <div className="bg-muted/45 flex items-start gap-3 rounded-xl border p-4">
+          <ShieldCheck className="text-primary mt-0.5 size-4 shrink-0" />
+          <FieldDescription className="text-xs leading-5">
+            Authentication is handled by Google and Supabase. On Emit never
+            receives or stores your Google password.
+          </FieldDescription>
+        </div>
+      </FieldGroup>
+      <p className="text-muted-foreground flex justify-center gap-1 text-center text-sm lg:text-left">
+        {isSignup ? "Already have a workspace?" : "New to On Emit?"}{" "}
+        <Link
+          href={alternateHref}
+          className="text-foreground font-medium underline underline-offset-4"
+        >
+          {isSignup ? "Sign in" : "Create an account"}
+        </Link>
+      </p>
 
-            <div className="bg-muted/40 mt-7 rounded-xl border p-4 text-sm">
-              <p className="font-medium">One identity, isolated workspace</p>
-              <p className="text-muted-foreground mt-1 leading-5">
-                Your Supabase user is used to keep each user&apos;s Corsair data
-                in the correct tenant.
-              </p>
-            </div>
-          </section>
-
-          <aside className="bg-sidebar relative hidden overflow-hidden border-l lg:flex lg:flex-col lg:justify-center lg:p-10">
-            <div className="bg-primary/15 absolute -top-24 -right-24 size-72 rounded-full blur-3xl" />
-            <div className="bg-accent/20 absolute -bottom-28 -left-24 size-72 rounded-full blur-3xl" />
-
-            <div className="relative z-10">
-              <p className="text-sidebar-foreground/60 mb-5 text-xs font-semibold tracking-[0.18em] uppercase">
-                One focused workspace
-              </p>
-
-              <div className="space-y-3">
-                {workflowHighlights.map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <div
-                      key={item.title}
-                      className="bg-background/80 flex gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur"
-                    >
-                      <div className="bg-primary/15 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
-                        <Icon className="size-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">{item.title}</p>
-                        <p className="text-muted-foreground mt-1 text-xs leading-5">
-                          {item.description}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </aside>
-        </CardContent>
-      </Card>
-
-      <FieldDescription className="px-6 text-center">
-        By continuing, you agree to securely connect your workspace through
-        Supabase and Corsair.
+      <FieldDescription className="text-center text-xs lg:text-left">
+        By continuing, you agree to use On Emit responsibly and authorize the
+        requested Google account access.
       </FieldDescription>
     </div>
   );

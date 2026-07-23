@@ -107,7 +107,15 @@ const replyInput = z.object({
 
 const threadActionInput = z.object({
   threadId: z.string().min(1).max(1_000),
-  action: z.enum(["archive", "unarchive", "mark_read", "mark_unread"]),
+  action: z.enum([
+    "archive",
+    "unarchive",
+    "mark_read",
+    "mark_unread",
+    "star",
+    "unstar",
+    "trash",
+  ]),
 });
 
 const searchInput = z.object({
@@ -252,8 +260,8 @@ async function createReplyPayload(
 export const gmailRouter = createTRPCRouter({
   stats: protectedProcedure.query(async ({ ctx }) => {
     try {
-      await ensureGmailConnected(ctx.userId);
-      const tenantCorsair = getTenantCorsair(ctx.userId);
+      await ensureGmailConnected(ctx.corsairTenantId);
+      const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
       const inbox = await tenantCorsair.gmail.api.labels.get({
         userId: "me",
         id: "INBOX",
@@ -283,8 +291,8 @@ export const gmailRouter = createTRPCRouter({
     .input(searchInput)
     .query(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
 
         return await listThreadSummaries(
           tenantCorsair,
@@ -308,9 +316,9 @@ export const gmailRouter = createTRPCRouter({
     .input(replyInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
         const { tenantCorsair, raw } = await createReplyPayload(
-          ctx.userId,
+          ctx.corsairTenantId,
           input,
         );
         const message = await tenantCorsair.gmail.api.messages.send({
@@ -340,9 +348,9 @@ export const gmailRouter = createTRPCRouter({
     .input(replyInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
         const { tenantCorsair, raw } = await createReplyPayload(
-          ctx.userId,
+          ctx.corsairTenantId,
           input,
         );
         const draft = await tenantCorsair.gmail.api.drafts.create({
@@ -376,23 +384,30 @@ export const gmailRouter = createTRPCRouter({
     .input(threadActionInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
 
-        const labels =
-          input.action === "archive"
-            ? { removeLabelIds: ["INBOX"] }
-            : input.action === "unarchive"
-              ? { addLabelIds: ["INBOX"] }
-              : input.action === "mark_read"
-                ? { removeLabelIds: ["UNREAD"] }
-                : { addLabelIds: ["UNREAD"] };
-
-        const thread = await tenantCorsair.gmail.api.threads.modify({
-          userId: "me",
-          id: input.threadId,
-          ...labels,
-        });
+        const thread =
+          input.action === "trash"
+            ? await tenantCorsair.gmail.api.threads.trash({
+                userId: "me",
+                id: input.threadId,
+              })
+            : await tenantCorsair.gmail.api.threads.modify({
+                userId: "me",
+                id: input.threadId,
+                ...(input.action === "archive"
+                  ? { removeLabelIds: ["INBOX"] }
+                  : input.action === "unarchive"
+                    ? { addLabelIds: ["INBOX"] }
+                    : input.action === "mark_read"
+                      ? { removeLabelIds: ["UNREAD"] }
+                      : input.action === "mark_unread"
+                        ? { addLabelIds: ["UNREAD"] }
+                        : input.action === "star"
+                          ? { addLabelIds: ["STARRED"] }
+                          : { removeLabelIds: ["STARRED"] }),
+              });
 
         return {
           threadId: thread.id ?? input.threadId,
@@ -415,9 +430,9 @@ export const gmailRouter = createTRPCRouter({
     .input(sendEmailInput)
     .mutation(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
 
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
         const raw = createRawEmail(input);
         const message = await tenantCorsair.gmail.api.messages.send({
           userId: "me",
@@ -451,7 +466,7 @@ export const gmailRouter = createTRPCRouter({
          * is connected to their Corsair tenant.
          */
         const connectionStatus = await corsair.manage.connectionStatus.get({
-          tenantId: ctx.userId,
+          tenantId: ctx.corsairTenantId,
         });
 
         if (connectionStatus.gmail !== "connected") {
@@ -466,7 +481,7 @@ export const gmailRouter = createTRPCRouter({
          *
          * The browser does not provide the tenant ID.
          */
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
 
         /*
          * threads.list only returns lightweight thread information.
@@ -480,7 +495,10 @@ export const gmailRouter = createTRPCRouter({
           queryFilter,
           input.maxResults,
         );
-        const priorities = await getEmailPriorities(ctx.userId, inboxThreads);
+        const priorities = await getEmailPriorities(
+          ctx.corsairTenantId,
+          inboxThreads,
+        );
 
         return inboxThreads.map((thread) => ({
           ...thread,
@@ -515,8 +533,8 @@ export const gmailRouter = createTRPCRouter({
     .input(mailboxListInput)
     .query(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
         const drafts = await listThreadSummaries(
           tenantCorsair,
           "in:drafts",
@@ -546,8 +564,8 @@ export const gmailRouter = createTRPCRouter({
     .input(mailboxListInput)
     .query(async ({ ctx, input }) => {
       try {
-        await ensureGmailConnected(ctx.userId);
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        await ensureGmailConnected(ctx.corsairTenantId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
         const archived = await listThreadSummaries(
           tenantCorsair,
           "-in:inbox -in:sent -in:drafts -in:spam -in:trash",
@@ -582,7 +600,7 @@ export const gmailRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       try {
         const connectionStatus = await corsair.manage.connectionStatus.get({
-          tenantId: ctx.userId,
+          tenantId: ctx.corsairTenantId,
         });
 
         if (connectionStatus.gmail !== "connected") {
@@ -592,7 +610,7 @@ export const gmailRouter = createTRPCRouter({
           });
         }
 
-        const tenantCorsair = getTenantCorsair(ctx.userId);
+        const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
 
         /*
          * Minimal gives us the Gmail message IDs without
@@ -642,6 +660,9 @@ export const gmailRouter = createTRPCRouter({
         const unread = (thread.messages ?? []).some((message) =>
           message.labelIds?.includes("UNREAD"),
         );
+        const starred = (thread.messages ?? []).some((message) =>
+          message.labelIds?.includes("STARRED"),
+        );
 
         return {
           id: thread.id ?? input.threadId,
@@ -649,6 +670,7 @@ export const gmailRouter = createTRPCRouter({
           snippet: thread.snippet ?? null,
           messageCount: messages.length,
           unread,
+          starred,
           messages,
         };
       } catch (error) {

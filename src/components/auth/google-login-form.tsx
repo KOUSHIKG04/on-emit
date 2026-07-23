@@ -9,7 +9,12 @@ type LoginFormValues = {
   provider: "google";
 };
 
-export function LoginForm() {
+type GoogleLoginFormProps = {
+  mode: "login" | "signup";
+  nextPath: string;
+};
+
+export function LoginForm({ mode, nextPath }: GoogleLoginFormProps) {
   const {
     handleSubmit,
     register,
@@ -28,10 +33,17 @@ export function LoginForm() {
     }
 
     const supabase = createClient();
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    callbackUrl.searchParams.set("next", nextPath);
+    callbackUrl.searchParams.set("mode", mode);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl.toString(),
+        queryParams: {
+          prompt: "select_account",
+        },
       },
     });
 
@@ -52,7 +64,11 @@ export function LoginForm() {
           className={"w-full py-6"}
         >
           <GoogleIcon />
-          {isSubmitting ? "Redirecting to Google..." : "Continue with Google"}
+          {isSubmitting
+            ? "Redirecting to Google..."
+            : mode === "signup"
+              ? "Sign up with Google"
+              : "Sign in with Google"}
         </Button>
       </div>
 

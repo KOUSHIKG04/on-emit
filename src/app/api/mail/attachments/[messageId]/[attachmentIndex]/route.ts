@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { getTenantCorsair } from "@/server/corsair";
+import { db } from "@/server/db";
 import { getAttachmentBuffer, parseGmailRaw } from "@/server/email/parse-email";
+import { getActiveCorsairTenantId } from "@/server/integrations/google-accounts";
 
 type RouteContext = {
   params: Promise<{
@@ -52,7 +54,8 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
-    const tenantCorsair = getTenantCorsair(userId);
+    const corsairTenantId = await getActiveCorsairTenantId(db, userId);
+    const tenantCorsair = getTenantCorsair(corsairTenantId);
 
     /*
      * The message is fetched using only the authenticated

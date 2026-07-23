@@ -17,7 +17,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Ghost2,
-  ChevronDown,
   Clock3,
   LoaderCircle,
   Paperclip,
@@ -31,13 +30,6 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Message,
   MessageAvatar,
@@ -64,13 +56,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api } from "@/trpc/client";
 import { cn } from "@/lib/utils";
-import {
-  DEFAULT_GEMINI_MODEL,
-  GEMINI_MODEL_OPTIONS,
-  getGeminiModelLabel,
-  isGeminiModel,
-  type GeminiModel,
-} from "@/lib/gemini";
+import { getAiModelLabel, getAiProviderLabel } from "@/lib/ai-providers";
+import type { AgentConversationContext } from "@/stores/workspace-store";
 
 type Values = { message: string };
 
@@ -105,7 +92,7 @@ type Conversation = {
   updatedAt: number;
   messages: ChatMessage[];
   actions: QueuedAction[];
-  model: GeminiModel;
+  context?: AgentConversationContext;
 };
 
 const STORAGE_KEY = "on-emit.agent-conversations";
@@ -149,16 +136,14 @@ function createId() {
   );
 }
 
-function createConversation(
-  model: GeminiModel = DEFAULT_GEMINI_MODEL,
-): Conversation {
+function createConversation(context?: AgentConversationContext): Conversation {
   return {
     id: createId(),
-    title: "New conversation",
+    title: context?.subject ?? "New conversation",
     updatedAt: Date.now(),
     messages: [],
     actions: [],
-    model,
+    ...(context ? { context } : {}),
   };
 }
 
@@ -193,8 +178,7 @@ function isQueuedAction(value: unknown): value is QueuedAction {
   );
 }
 
-type StoredConversation = Omit<Conversation, "model" | "actions"> & {
-  model?: unknown;
+type StoredConversation = Omit<Conversation, "actions"> & {
   actions?: unknown;
   pendingConfirmation?: unknown;
 };
@@ -203,7 +187,16 @@ function isConversation(value: unknown): value is StoredConversation {
   if (!value || typeof value !== "object") return false;
 
   const conversation = value as Partial<Conversation>;
+  const validContext =
+    conversation.context == null ||
+    (conversation.context.type === "gmail-thread" &&
+      typeof conversation.context.threadId === "string" &&
+      typeof conversation.context.subject === "string" &&
+      (conversation.context.senderEmail === null ||
+        typeof conversation.context.senderEmail === "string"));
+
   return (
+    validContext &&
     typeof conversation.id === "string" &&
     typeof conversation.title === "string" &&
     typeof conversation.updatedAt === "number" &&
@@ -381,7 +374,11 @@ function ActionsPanel({
   );
 }
 
-export function AgentChat() {
+export function AgentChat({
+  variant = "page",
+}: {
+  variant?: "page" | "panel";
+} = {}) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
@@ -460,9 +457,6 @@ export function AgentChat() {
             updatedAt: item.updatedAt,
             messages: item.messages,
             actions: [...storedActions, ...legacyActions],
-            model: isGeminiModel(item.model)
-              ? item.model
-              : DEFAULT_GEMINI_MODEL,
           };
         });
       }
@@ -513,32 +507,20 @@ export function AgentChat() {
   }, [agentDraft, hydrated, setAgentDraft, setValue]);
 
   useEffect(() => {
-    if (!settingsQuery.data) return;
-
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.messages.length === 0 &&
-        conversation.title === "New conversation"
-          ? { ...conversation, model: settingsQuery.data.model }
-          : conversation,
-      ),
-    );
-  }, [settingsQuery.data]);
-
-  useEffect(() => {
     if (settingsQuery.error) toast.error(settingsQuery.error.message);
   }, [settingsQuery.error]);
 
-  const createNewChat = useCallback(() => {
-    const conversation = createConversation(
-      settingsQuery.data?.model ?? DEFAULT_GEMINI_MODEL,
-    );
-    setConversations((current) => [conversation, ...current]);
-    setActiveId(conversation.id);
-    setMobileActionsOpen(false);
-    setAttachments([]);
-    reset({ message: "" });
-  }, [reset, setActiveId, settingsQuery.data?.model]);
+  const createNewChat = useCallback(
+    (context?: AgentConversationContext) => {
+      const conversation = createConversation(context);
+      setConversations((current) => [conversation, ...current]);
+      setActiveId(conversation.id);
+      setMobileActionsOpen(false);
+      setAttachments([]);
+      reset({ message: "" });
+    },
+    [reset, setActiveId],
+  );
 
   const deleteConversation = useCallback(
     (id: string) => {
@@ -547,11 +529,7 @@ export function AgentChat() {
       );
       const nextConversations = remaining.length
         ? remaining
-        : [
-            createConversation(
-              settingsQuery.data?.model ?? DEFAULT_GEMINI_MODEL,
-            ),
-          ];
+        : [createConversation()];
 
       setConversations(nextConversations);
       if (activeId === id) {
@@ -564,14 +542,14 @@ export function AgentChat() {
       }
       toast.success("Chat deleted.");
     },
-    [activeId, conversations, reset, setActiveId, settingsQuery.data?.model],
+    [activeId, conversations, reset, setActiveId],
   );
 
   useEffect(() => {
     if (!hydrated || !agentChatCommand) return;
 
     if (agentChatCommand.type === "create") {
-      createNewChat();
+      createNewChat(agentChatCommand.context);
     } else {
       deleteConversation(agentChatCommand.conversationId);
     }
@@ -583,14 +561,6 @@ export function AgentChat() {
     deleteConversation,
     hydrated,
   ]);
-
-  function setConversationModel(id: string, model: GeminiModel) {
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.id === id ? { ...conversation, model } : conversation,
-      ),
-    );
-  }
 
   async function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -714,17 +684,22 @@ export function AgentChat() {
     }
 
     try {
+      const scopedMessage =
+        selectedConversation.context?.type === "gmail-thread"
+          ? `This conversation is scoped to one Gmail thread. Use only Gmail thread ${selectedConversation.context.threadId} with subject "${selectedConversation.context.subject}"${
+              selectedConversation.context.senderEmail
+                ? ` from ${selectedConversation.context.senderEmail}`
+                : ""
+            } unless the user explicitly asks to leave this thread. User request: ${content}`
+          : content;
       const result = await chat.mutateAsync({
-        message: content,
+        message: scopedMessage,
         attachments: agentAttachments.map((attachment) => ({
           name: attachment.name,
           mimeType: attachment.mimeType,
           dataUrl: attachment.dataUrl,
         })),
         confirmed,
-        ...(settingsQuery.data?.source === "byok"
-          ? { model: selectedConversation.model }
-          : {}),
       });
       const queuedActionId = result.requiresApproval ? createId() : undefined;
       const assistantMessage: ChatMessage = {
@@ -846,6 +821,15 @@ export function AgentChat() {
       </Sheet>
 
       <section className="flex min-w-0 flex-1 flex-col">
+        {activeConversation?.context?.type === "gmail-thread" ? (
+          <div className="bg-card flex shrink-0 items-center gap-2 border-b px-4 py-2.5 text-xs">
+            <Ghost2 className="text-primary size-4 shrink-0" />
+            <span className="text-muted-foreground">Working with</span>
+            <span className="min-w-0 truncate font-medium">
+              {activeConversation.context.subject}
+            </span>
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1">
           {activeConversation ? (
             <MessageScrollerProvider
@@ -868,11 +852,40 @@ export function AgentChat() {
                           {greeting}
                         </h2>
                         <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-6">
-                          Search and summarize mail, prepare actions for
-                          approval, and manage your calendar.
+                          {activeConversation.context?.type === "gmail-thread"
+                            ? "Ask about this email, draft a reply, or queue a Gmail action for approval."
+                            : "Search and summarize mail, prepare actions for approval, and manage your calendar."}
                         </p>
                         <div className="mt-7 grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-                          {EXAMPLE_PROMPTS.map((example) => {
+                          {(activeConversation.context?.type === "gmail-thread"
+                            ? [
+                                {
+                                  label: "Summarize this email",
+                                  prompt:
+                                    "Summarize this email and list anything I need to do.",
+                                  icon: Sparkles,
+                                },
+                                {
+                                  label: "Draft a reply",
+                                  prompt:
+                                    "Draft a concise reply to this email. Do not send it yet.",
+                                  icon: Ghost2,
+                                },
+                                {
+                                  label: "Archive this email",
+                                  prompt:
+                                    "Archive this email after showing me the exact action for approval.",
+                                  icon: Search,
+                                },
+                                {
+                                  label: "Find dates and tasks",
+                                  prompt:
+                                    "Extract every date, deadline, meeting, and action item from this email.",
+                                  icon: CalendarDays,
+                                },
+                              ]
+                            : EXAMPLE_PROMPTS
+                          ).map((example) => {
                             const Icon = example.icon;
                             return (
                               <Button
@@ -1097,7 +1110,10 @@ export function AgentChat() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 gap-1.5 px-2 xl:hidden"
+                  className={cn(
+                    "h-8 gap-1.5 px-2",
+                    variant === "page" && "xl:hidden",
+                  )}
                   title="Open actions"
                   onClick={() => setMobileActionsOpen(true)}
                 >
@@ -1119,47 +1135,23 @@ export function AgentChat() {
 
               <div className="flex shrink-0 items-center gap-1">
                 {activeConversation && settingsQuery.data?.source === "byok" ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button type="button" variant="ghost" size="sm" />
-                      }
-                    >
-                      <span className="max-w-40 truncate">
-                        {getGeminiModelLabel(activeConversation.model)}
-                      </span>
-                      <ChevronDown />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-64">
-                      <DropdownMenuRadioGroup
-                        value={activeConversation.model}
-                        onValueChange={(value) => {
-                          if (isGeminiModel(value)) {
-                            setConversationModel(activeConversation.id, value);
-                          }
-                        }}
-                      >
-                        {GEMINI_MODEL_OPTIONS.map((option) => (
-                          <DropdownMenuRadioItem
-                            key={option.id}
-                            value={option.id}
-                          >
-                            {option.label}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : activeConversation ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     disabled
-                    aria-label="Default model"
+                    aria-label={`Agent model: ${getAiProviderLabel(
+                      settingsQuery.data.provider,
+                    )} ${settingsQuery.data.model}`}
                   >
-                    <span className="max-w-40 truncate">Default model</span>
-                    <ChevronDown />
+                    <Sparkles />
+                    <span className="max-w-52 truncate">
+                      {getAiProviderLabel(settingsQuery.data.provider)} ·{" "}
+                      {getAiModelLabel(
+                        settingsQuery.data.provider,
+                        settingsQuery.data.model,
+                      )}
+                    </span>
                   </Button>
                 ) : null}
 
@@ -1183,27 +1175,29 @@ export function AgentChat() {
         </form>
       </section>
 
-      <aside className="hidden w-80 shrink-0 border-l xl:flex">
-        <ActionsPanel
-          actions={activeConversation?.actions ?? []}
-          disabled={chat.isPending}
-          onApprove={(action) => {
-            if (!activeConversation) return;
-            void runAgent(
-              activeConversation.id,
-              action.request,
-              true,
-              false,
-              action.attachments,
-              action.id,
-            );
-          }}
-          onRemove={(actionId) => {
-            if (!activeConversation) return;
-            removeAction(activeConversation.id, actionId);
-          }}
-        />
-      </aside>
+      {variant === "page" ? (
+        <aside className="hidden w-80 shrink-0 border-l xl:flex">
+          <ActionsPanel
+            actions={activeConversation?.actions ?? []}
+            disabled={chat.isPending}
+            onApprove={(action) => {
+              if (!activeConversation) return;
+              void runAgent(
+                activeConversation.id,
+                action.request,
+                true,
+                false,
+                action.attachments,
+                action.id,
+              );
+            }}
+            onRemove={(actionId) => {
+              if (!activeConversation) return;
+              removeAction(activeConversation.id, actionId);
+            }}
+          />
+        </aside>
+      ) : null}
     </div>
   );
 }

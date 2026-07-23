@@ -1,10 +1,12 @@
 import {
+  boolean,
   index,
   jsonb,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const corsairIntegrations = pgTable("corsair_integrations", {
@@ -113,6 +115,7 @@ export const corsairEmailPriorities = pgTable(
 export const corsairAiSettings = pgTable("corsair_ai_settings", {
   userId: text("user_id").primaryKey(),
   provider: text("provider").notNull().default("gemini"),
+  source: text("source").notNull().default("default"),
   model: text("model").notNull().default("gemini-3.5-flash"),
   encryptedApiKey: text("encrypted_api_key"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -122,3 +125,46 @@ export const corsairAiSettings = pgTable("corsair_ai_settings", {
     .notNull()
     .defaultNow(),
 });
+
+export const corsairAiProviderKeys = pgTable(
+  "corsair_ai_provider_keys",
+  {
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(),
+    encryptedApiKey: text("encrypted_api_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.provider] })],
+);
+
+export const corsairGoogleAccounts = pgTable(
+  "corsair_google_accounts",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    corsairTenantId: text("corsair_tenant_id").notNull(),
+    label: text("label").notNull(),
+    isActive: boolean("is_active").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("corsair_google_accounts_user_id_idx").on(table.userId),
+    index("corsair_google_accounts_active_idx").on(
+      table.userId,
+      table.isActive,
+    ),
+    uniqueIndex("corsair_google_accounts_tenant_id_unique").on(
+      table.corsairTenantId,
+    ),
+  ],
+);
