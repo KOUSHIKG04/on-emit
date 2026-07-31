@@ -16,9 +16,13 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  try {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
+    if (error) {
+      return redirectToAuthError(authPath, nextPath, "oauth_callback_failed");
+    }
+  } catch {
     return redirectToAuthError(authPath, nextPath, "oauth_callback_failed");
   }
 

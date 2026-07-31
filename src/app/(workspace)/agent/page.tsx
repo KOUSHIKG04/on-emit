@@ -2,7 +2,7 @@ import { AgentChat } from "@/components/agent/agent-chat";
 
 export default function AgentPage() {
   return (
-    <main className="min-h-0 flex-1 overflow-hidden">
+    <main className="h-[calc(100svh-4rem)] min-h-0 flex-none overflow-hidden">
       <AgentChat />
     </main>
   );

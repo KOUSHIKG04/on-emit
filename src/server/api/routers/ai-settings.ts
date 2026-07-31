@@ -4,28 +4,35 @@ import { z } from "zod";
 
 import { env } from "@/env";
 import {
+  AI_PROVIDER_OPTIONS,
   DEFAULT_AI_PROVIDER,
   getDefaultAiModel,
   isAiProvider,
+  type AiProvider,
 } from "@/lib/ai-providers";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsairAiProviderKeys, corsairAiSettings } from "@/server/db/schema";
 import { encryptApiKey } from "@/server/ai/api-key-crypto";
 import { isMissingAiSettingsSchema } from "@/server/ai/settings-db";
 
-const aiProviderSchema = z.enum([
-  "gemini",
-  "openrouter",
-  "openai",
-  "anthropic",
-]);
+const aiProviderSchema = z.enum(
+  AI_PROVIDER_OPTIONS.map((provider) => provider.id) as [
+    AiProvider,
+    ...AiProvider[],
+  ],
+);
 
-const updateSettingsInput = z.object({
-  source: z.enum(["default", "byok"]),
-  provider: aiProviderSchema,
-  model: z.string().trim().min(1).max(160),
-  apiKey: z.string().trim().min(20).max(500).optional(),
-});
+const updateSettingsInput = z.discriminatedUnion("source", [
+  z.object({
+    source: z.literal("default"),
+  }),
+  z.object({
+    source: z.literal("byok"),
+    provider: aiProviderSchema,
+    model: z.string().trim().min(1).max(160),
+    apiKey: z.string().trim().min(20).max(500).optional(),
+  }),
+]);
 
 export const aiSettingsRouter = createTRPCRouter({
   get: protectedProcedure.query(async ({ ctx }) => {
@@ -48,7 +55,7 @@ export const aiSettingsRouter = createTRPCRouter({
       if (!isMissingAiSettingsSchema(error)) throw error;
     }
 
-    const provider = isAiProvider(settings?.provider)
+    const provider: AiProvider = isAiProvider(settings?.provider)
       ? settings.provider
       : DEFAULT_AI_PROVIDER;
     const source = settings?.source === "byok" ? "byok" : "default";
@@ -60,15 +67,29 @@ export const aiSettingsRouter = createTRPCRouter({
       savedProviders.push(provider);
     }
 
+    const storedModel = settings?.model?.trim() || getDefaultAiModel(provider);
+    const userModel =
+      provider === "gemini" &&
+      /^(?:models\/)?gemini-2\.0-flash(?:-lite)?$/i.test(storedModel)
+        ? getDefaultAiModel("gemini")
+        : storedModel;
+
+    if (source === "default") {
+      return {
+        source,
+        provider: null,
+        model: null,
+        hasPrivateKey: false,
+        savedProviders,
+        hasDefaultKey: Boolean(env.GEMINI_API_KEY),
+      } as const;
+    }
+
     return {
-      provider,
-      model:
-        source === "byok"
-          ? (settings?.model ?? getDefaultAiModel(provider))
-          : env.GEMINI_AGENT_MODEL,
-      defaultModel: env.GEMINI_AGENT_MODEL,
       source,
-      hasPrivateKey: source === "byok" && savedProviders.includes(provider),
+      provider,
+      model: userModel,
+      hasPrivateKey: savedProviders.includes(provider),
       savedProviders,
       hasDefaultKey: Boolean(env.GEMINI_API_KEY),
     } as const;
@@ -81,14 +102,7 @@ export const aiSettingsRouter = createTRPCRouter({
         if (!env.GEMINI_API_KEY) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: "No app Gemini key is configured. Use your own key.",
-          });
-        }
-
-        if (input.provider !== DEFAULT_AI_PROVIDER) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "The free app key is available for Google Gemini only.",
+            message: "Built-in AI is unavailable. Configure your own key.",
           });
         }
       }
@@ -108,17 +122,21 @@ export const aiSettingsRouter = createTRPCRouter({
           .where(eq(corsairAiProviderKeys.userId, ctx.userId)),
       ]);
 
-      const savedProviders = existingProviderKeys
+      const savedProviders: AiProvider[] = existingProviderKeys
         .map(({ provider }) => provider)
         .filter(isAiProvider);
       const hasLegacyKey =
+        input.source === "byok" &&
         Boolean(existingSettings?.encryptedApiKey) &&
         existingSettings?.provider === input.provider;
 
       if (input.source === "byok") {
-        if (input.apiKey) {
+        if (input.apiKey || hasLegacyKey) {
           const now = new Date();
-          const encryptedApiKey = encryptApiKey(input.apiKey);
+          const encryptedApiKey = input.apiKey
+            ? encryptApiKey(input.apiKey)
+            : existingSettings!.encryptedApiKey!;
+
           await ctx.db
             .insert(corsairAiProviderKeys)
             .values({
@@ -141,7 +159,7 @@ export const aiSettingsRouter = createTRPCRouter({
           if (!savedProviders.includes(input.provider)) {
             savedProviders.push(input.provider);
           }
-        } else if (!savedProviders.includes(input.provider) && !hasLegacyKey) {
+        } else if (!savedProviders.includes(input.provider)) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `Enter an API key for ${input.provider} before enabling BYOK.`,
@@ -149,10 +167,15 @@ export const aiSettingsRouter = createTRPCRouter({
         }
       }
 
-      const provider =
+      const provider: AiProvider =
         input.source === "default" ? DEFAULT_AI_PROVIDER : input.provider;
-      const model =
+      const requestedModel =
         input.source === "default" ? env.GEMINI_AGENT_MODEL : input.model;
+      const model =
+        provider === "gemini" &&
+        /^(?:models\/)?gemini-2\.0-flash(?:-lite)?$/i.test(requestedModel)
+          ? getDefaultAiModel("gemini")
+          : requestedModel;
       const now = new Date();
 
       await ctx.db
@@ -177,13 +200,11 @@ export const aiSettingsRouter = createTRPCRouter({
         });
 
       return {
-        provider,
-        model,
-        defaultModel: env.GEMINI_AGENT_MODEL,
         source: input.source,
+        provider: input.source === "byok" ? provider : null,
+        model: input.source === "byok" ? model : null,
         hasPrivateKey:
-          input.source === "byok" &&
-          (savedProviders.includes(provider) || hasLegacyKey),
+          input.source === "byok" && savedProviders.includes(provider),
         savedProviders,
         hasDefaultKey: Boolean(env.GEMINI_API_KEY),
       } as const;

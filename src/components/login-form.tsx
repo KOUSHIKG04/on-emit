@@ -35,7 +35,10 @@ export function LoginForm({
   const alternateHref = isSignup
     ? `/login?next=${encodeURIComponent(nextPath)}`
     : `/signup?next=${encodeURIComponent(nextPath)}`;
-  const errorMessage = errorCode ? authErrors[errorCode] : undefined;
+  const errorMessage = errorCode
+    ? (authErrors[errorCode] ??
+      "Sign in failed. Please try again or sign in with Google.")
+    : undefined;
 
   return (
     <div className={cn("flex flex-col gap-7", className)} {...props}>

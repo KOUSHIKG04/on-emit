@@ -12,7 +12,22 @@ import {
 void describe("AI providers", () => {
   void it("keeps Gemini as the default free provider", () => {
     assert.equal(DEFAULT_AI_PROVIDER, "gemini");
-    assert.equal(getDefaultAiModel(DEFAULT_AI_PROVIDER), "gemini-2.5-flash");
+    assert.equal(
+      getDefaultAiModel(DEFAULT_AI_PROVIDER),
+      "gemini-3.5-flash-lite",
+    );
+    assert.deepEqual(
+      AI_PROVIDER_OPTIONS[0].models.map(({ id }) => id),
+      [
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+      ],
+    );
   });
 
   void it("supports every requested BYOK provider", () => {

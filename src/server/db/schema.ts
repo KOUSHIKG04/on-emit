@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -159,10 +160,9 @@ export const corsairGoogleAccounts = pgTable(
   },
   (table) => [
     index("corsair_google_accounts_user_id_idx").on(table.userId),
-    index("corsair_google_accounts_active_idx").on(
-      table.userId,
-      table.isActive,
-    ),
+    uniqueIndex("corsair_google_accounts_active_idx")
+      .on(table.userId)
+      .where(eq(table.isActive, true)),
     uniqueIndex("corsair_google_accounts_tenant_id_unique").on(
       table.corsairTenantId,
     ),

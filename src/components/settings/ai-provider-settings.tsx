@@ -38,6 +38,7 @@ export function AiProviderSettings({ className }: { className?: string }) {
   );
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showByokForm, setShowByokForm] = useState(false);
 
   const updateMutation = api.aiSettings.update.useMutation();
   const providerOption = getAiProvider(provider);
@@ -71,6 +72,10 @@ export function AiProviderSettings({ className }: { className?: string }) {
         ...(trimmedKey ? { apiKey: trimmedKey } : {}),
       });
 
+      if (data.source !== "byok" || !data.provider || !data.model) {
+        throw new Error("The saved provider response was incomplete.");
+      }
+
       setApiKey("");
       setShowApiKey(false);
       setProvider(data.provider);
@@ -86,10 +91,40 @@ export function AiProviderSettings({ className }: { className?: string }) {
     }
   }
 
+  async function resetToDefault() {
+    try {
+      await updateMutation.mutateAsync({
+        source: "default",
+      });
+
+      setApiKey("");
+      setShowApiKey(false);
+      setShowByokForm(false);
+      toast.success("Switched to built-in AI.");
+      await utils.aiSettings.get.invalidate();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not reset settings.";
+      toast.error(message);
+    } finally {
+      updateMutation.reset();
+    }
+  }
+
   useEffect(() => {
     if (!settingsQuery.data) return;
-    setProvider(settingsQuery.data.provider);
-    setModel(settingsQuery.data.model);
+    if (
+      settingsQuery.data.source === "byok" &&
+      settingsQuery.data.provider &&
+      settingsQuery.data.model
+    ) {
+      setProvider(settingsQuery.data.provider);
+      setModel(settingsQuery.data.model);
+      setShowByokForm(true);
+      return;
+    }
+
+    setShowByokForm(false);
   }, [settingsQuery.data]);
 
   useEffect(() => {
@@ -103,153 +138,215 @@ export function AiProviderSettings({ className }: { className?: string }) {
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="grid content-start gap-2">
-            <Label>Provider</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
+        {!showByokForm ? (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">Built-in AI is active</p>
+              <p className="text-muted-foreground mt-1 text-sm">
+                The app manages its provider privately. Add your own key only if
+                you want to choose a provider and model.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full shrink-0 sm:w-auto"
+              onClick={() => setShowByokForm(true)}
+            >
+              Use my own key
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 flex justify-end">
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary text-sm underline-offset-4 hover:underline"
+              >
+                Get a free Gemini API key
+              </a>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid content-start gap-2">
+                <Label>Provider</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between"
+                      />
+                    }
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{providerOption.label}</span>
+                      {hasSavedKey ? (
+                        <span className="text-muted-foreground text-xs">
+                          Saved
+                        </span>
+                      ) : null}
+                    </span>
+                    <ChevronsUpDown className="text-muted-foreground" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-72">
+                    <DropdownMenuRadioGroup
+                      value={provider}
+                      onValueChange={(value) => {
+                        if (!isAiProvider(value)) return;
+                        const nextProvider = getAiProvider(value);
+                        setProvider(value);
+                        setModel(nextProvider.defaultModel);
+                        setApiKey("");
+                      }}
+                    >
+                      {AI_PROVIDER_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem
+                          key={option.id}
+                          value={option.id}
+                        >
+                          <span className="flex min-w-0 flex-1 items-center justify-between gap-4">
+                            <span className="truncate">{option.label}</span>
+                            {savedProviders.includes(option.id) ? (
+                              <span className="text-muted-foreground text-xs">
+                                Saved
+                              </span>
+                            ) : null}
+                          </span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="grid content-start gap-2">
+                <Label htmlFor="ai-api-key">{providerOption.keyLabel}</Label>
+                <div className="relative">
+                  <Input
+                    id="ai-api-key"
+                    type={showApiKey ? "text" : "password"}
+                    value={apiKey}
+                    className="pr-10"
+                    autoComplete="off"
+                    placeholder={
+                      hasSavedKey
+                        ? "Enter a new key to replace the saved key"
+                        : providerOption.keyPlaceholder
+                    }
+                    onChange={(event) => setApiKey(event.target.value)}
+                  />
                   <Button
                     type="button"
-                    variant="outline"
-                    className="w-full justify-between"
-                  />
-                }
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate">{providerOption.label}</span>
-                  {hasSavedKey ? (
-                    <span className="text-muted-foreground text-xs">Saved</span>
-                  ) : null}
-                </span>
-                <ChevronsUpDown className="text-muted-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-72">
-                <DropdownMenuRadioGroup
-                  value={provider}
-                  onValueChange={(value) => {
-                    if (!isAiProvider(value)) return;
-                    const nextProvider = getAiProvider(value);
-                    setProvider(value);
-                    setModel(nextProvider.defaultModel);
-                    setApiKey("");
-                  }}
-                >
-                  {AI_PROVIDER_OPTIONS.map((option) => (
-                    <DropdownMenuRadioItem key={option.id} value={option.id}>
-                      <span className="flex min-w-0 flex-1 items-center justify-between gap-4">
-                        <span className="truncate">{option.label}</span>
-                        {savedProviders.includes(option.id) ? (
-                          <span className="text-muted-foreground text-xs">
-                            Saved
-                          </span>
-                        ) : null}
-                      </span>
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                    variant="ghost"
+                    size="icon-sm"
+                    className="absolute top-0.5 right-1"
+                    aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                    onClick={() => setShowApiKey((visible) => !visible)}
+                  >
+                    {showApiKey ? <EyeOff /> : <Eye />}
+                  </Button>
+                </div>
+              </div>
 
-          <div className="grid content-start gap-2">
-            <Label htmlFor="ai-api-key">{providerOption.keyLabel}</Label>
-            <div className="relative">
-              <Input
-                id="ai-api-key"
-                type={showApiKey ? "text" : "password"}
-                value={apiKey}
-                className="pr-10"
-                autoComplete="off"
-                placeholder={
-                  hasSavedKey
-                    ? "Enter a new key to replace the saved key"
-                    : providerOption.keyPlaceholder
-                }
-                onChange={(event) => setApiKey(event.target.value)}
-              />
+              <div className="grid content-start gap-2 md:col-span-2 xl:col-span-1">
+                <Label>Model</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between"
+                      />
+                    }
+                  >
+                    <span className="truncate">
+                      {usesCustomModel
+                        ? model || "Custom model ID"
+                        : getAiModelLabel(provider, model)}
+                    </span>
+                    <ChevronsUpDown className="text-muted-foreground" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    className="max-h-64 min-w-72 overflow-y-auto"
+                  >
+                    <DropdownMenuRadioGroup
+                      value={usesCustomModel ? CUSTOM_MODEL_VALUE : model}
+                      onValueChange={(value) => {
+                        if (typeof value !== "string") return;
+                        setModel(value === CUSTOM_MODEL_VALUE ? "" : value);
+                      }}
+                    >
+                      {providerOption.models.map((option) => (
+                        <DropdownMenuRadioItem
+                          key={option.id}
+                          value={option.id}
+                        >
+                          <span className="flex min-w-0 flex-col">
+                            <span>{option.label}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {option.id}
+                            </span>
+                          </span>
+                        </DropdownMenuRadioItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuRadioItem value={CUSTOM_MODEL_VALUE}>
+                        Custom model ID
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {usesCustomModel ? (
+                  <Input
+                    value={model}
+                    placeholder="Enter model ID"
+                    aria-label="Custom model ID"
+                    onChange={(event) => setModel(event.target.value)}
+                  />
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-3">
               <Button
                 type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="absolute top-0.5 right-1"
-                aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                onClick={() => setShowApiKey((visible) => !visible)}
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={settingsQuery.isLoading || updateMutation.isPending}
+                onClick={() => {
+                  if (settingsQuery.data?.source === "byok") {
+                    void resetToDefault();
+                    return;
+                  }
+                  setApiKey("");
+                  setShowApiKey(false);
+                  setShowByokForm(false);
+                }}
               >
-                {showApiKey ? <EyeOff /> : <Eye />}
+                {settingsQuery.data?.source === "byok"
+                  ? "Reset to built-in"
+                  : "Cancel"}
+              </Button>
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                disabled={settingsQuery.isLoading || updateMutation.isPending}
+                onClick={() => void saveSettings()}
+              >
+                {updateMutation.isPending ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : null}
+                Save
               </Button>
             </div>
-          </div>
-
-          <div className="grid content-start gap-2 md:col-span-2 xl:col-span-1">
-            <Label>Model</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-between"
-                  />
-                }
-              >
-                <span className="truncate">
-                  {usesCustomModel
-                    ? model || "Custom model ID"
-                    : getAiModelLabel(provider, model)}
-                </span>
-                <ChevronsUpDown className="text-muted-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-72">
-                <DropdownMenuRadioGroup
-                  value={usesCustomModel ? CUSTOM_MODEL_VALUE : model}
-                  onValueChange={(value) => {
-                    if (typeof value !== "string") return;
-                    setModel(value === CUSTOM_MODEL_VALUE ? "" : value);
-                  }}
-                >
-                  {providerOption.models.map((option) => (
-                    <DropdownMenuRadioItem key={option.id} value={option.id}>
-                      <span className="flex min-w-0 flex-col">
-                        <span>{option.label}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {option.id}
-                        </span>
-                      </span>
-                    </DropdownMenuRadioItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuRadioItem value={CUSTOM_MODEL_VALUE}>
-                    Custom model ID
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {usesCustomModel ? (
-              <Input
-                value={model}
-                placeholder="Enter model ID"
-                aria-label="Custom model ID"
-                onChange={(event) => setModel(event.target.value)}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-5 flex justify-end">
-          <Button
-            type="button"
-            className="w-full sm:w-auto"
-            disabled={settingsQuery.isLoading || updateMutation.isPending}
-            onClick={() => void saveSettings()}
-          >
-            {updateMutation.isPending ? (
-              <LoaderCircle className="animate-spin" />
-            ) : null}
-            Save
-          </Button>
-        </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

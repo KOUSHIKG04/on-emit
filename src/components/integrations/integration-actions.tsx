@@ -3,12 +3,22 @@
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   LoaderCircle,
   Mail,
+  RefreshCw,
 } from "@/components/icons";
 import type { TablerIcon } from "@/components/icons";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/toaster";
 import { api } from "@/trpc/client";
 
@@ -81,22 +91,51 @@ function ConnectionButton({
   icon: Icon,
   onClick,
 }: ConnectionButtonProps) {
+  if (connected) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={loading}
+          render={
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label={`${label} connection options`}
+            />
+          }
+        >
+          {loading ? <LoaderCircle className="animate-spin" /> : <Icon />}
+          <span className="hidden xl:inline">{label}</span>
+          <CheckCircle2 className="size-3.5 text-emerald-500" />
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuLabel className="flex items-center gap-2">
+            <CheckCircle2 className="size-3.5 text-emerald-500" />
+            {label} connected
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onClick}>
+            <RefreshCw />
+            Reconnect {label}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   return (
     <Button
       type="button"
       size="sm"
       variant="outline"
       disabled={loading}
-      aria-label={connected ? `Reconnect ${label}` : `Connect ${label}`}
+      aria-label={`Connect ${label}`}
       onClick={onClick}
     >
       {loading ? <LoaderCircle className="animate-spin" /> : <Icon />}
-      <span className="hidden xl:inline">
-        {connected ? label : `Connect ${label}`}
-      </span>
-      {connected ? (
-        <CheckCircle2 className="hidden size-3.5 text-emerald-500 xl:block" />
-      ) : null}
+      <span className="hidden xl:inline">Connect {label}</span>
     </Button>
   );
 }

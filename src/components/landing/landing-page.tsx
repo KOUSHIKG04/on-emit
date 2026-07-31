@@ -18,7 +18,7 @@ export function LandingPage() {
       <LandingBackground />
       <LandingHeader />
 
-      <div className="relative z-10 mx-auto max-w-6xl overflow-hidden border-x border-white/8">
+      <div className="relative z-10 mx-auto max-w-5xl overflow-hidden border-x border-white/8">
         <LandingHero />
         <IntegrationsStrip />
         <FeaturesSection />

@@ -34,16 +34,38 @@ function schemaRequiredError(error: unknown) {
 }
 
 export const integrationsRouter = createTRPCRouter({
-  webhookConfig: protectedProcedure.query(({ ctx }) => {
-    const url = new URL("/api/webhooks/corsair", env.APP_URL);
-    url.searchParams.set("tenantId", ctx.corsairTenantId);
-    url.searchParams.set(
-      "token",
-      createWebhookTenantToken(ctx.corsairTenantId),
-    );
+  webhookConfig: protectedProcedure
+    .input(z.object({ accountId: accountId.optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      let tenantId = ctx.corsairTenantId;
 
-    return { url: url.toString() };
-  }),
+      if (input?.accountId && input.accountId !== "legacy") {
+        const [account] = await ctx.db
+          .select({
+            corsairTenantId: corsairGoogleAccounts.corsairTenantId,
+          })
+          .from(corsairGoogleAccounts)
+          .where(
+            and(
+              eq(corsairGoogleAccounts.id, input.accountId),
+              eq(corsairGoogleAccounts.userId, ctx.userId),
+            ),
+          )
+          .limit(1);
+
+        if (account) {
+          tenantId = account.corsairTenantId;
+        }
+      } else if (input?.accountId === "legacy") {
+        tenantId = ctx.userId;
+      }
+
+      const url = new URL("/api/webhooks/corsair", env.APP_URL);
+      url.searchParams.set("tenantId", tenantId);
+      url.searchParams.set("token", createWebhookTenantToken(tenantId));
+
+      return { url: url.toString() };
+    }),
 
   status: protectedProcedure.query(async ({ ctx }) => {
     const storedAccounts = await listGoogleAccounts(ctx.db, ctx.userId);
@@ -99,16 +121,20 @@ export const integrationsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        const existing = await listGoogleAccounts(ctx.db, ctx.userId);
-        if (existing.length >= 10) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "You can connect up to 10 Google accounts.",
-          });
-        }
-
         const id = crypto.randomUUID();
         const [created] = await ctx.db.transaction(async (transaction) => {
+          const existing = await transaction
+            .select()
+            .from(corsairGoogleAccounts)
+            .where(eq(corsairGoogleAccounts.userId, ctx.userId));
+
+          if (existing.length >= 10) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "You can connect up to 10 Google accounts.",
+            });
+          }
+
           await transaction
             .update(corsairGoogleAccounts)
             .set({ isActive: false, updatedAt: new Date() })

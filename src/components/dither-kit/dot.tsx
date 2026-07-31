@@ -49,9 +49,9 @@ export function Dot({
     >
       {band.map((b, i) => (
         <circle
-          {...paint}
           // biome-ignore lint/suspicious/noArrayIndexKey: index is the stable x position
           key={i}
+          {...paint}
           cx={ctx.xCenter(i) ?? 0}
           cy={ctx.y(b[1])}
           r={r}

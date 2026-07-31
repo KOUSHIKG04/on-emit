@@ -212,7 +212,7 @@ export function GmailSearch({
         <Collapsible defaultOpen className="shrink-0 border-b">
           <div className="flex h-16 items-center justify-between gap-2 px-4">
             <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-2 text-left">
-              <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-data-panel-open:rotate-90" />
+              <ChevronRight className="text-muted-foreground size-4 shrink-0 transition-transform group-data-open:rotate-90" />
               <Clock3 className="text-muted-foreground size-3.5 shrink-0" />
               <span className="truncate text-xs font-semibold uppercase">
                 Recent searches
