@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils";
 const currentYear = new Date().getFullYear();
 
 const navigationLinks = [
-  { href: "/", label: "Home" },
   { href: "#product", label: "Product" },
   { href: "#features", label: "Features" },
+  { href: "/", label: "Home" },
 ] as const;
 
 const supportLinks = [
-  { href: "/login", label: "Sign in" },
   { href: "/signup", label: "Create account" },
+  { href: "/login", label: "Sign in" },
   { href: "mailto:koushikgdatta5@gmail.com", label: "Contact support" },
 ] as const;
 
@@ -21,7 +21,7 @@ export function LandingFooter() {
   return (
     <footer className="relative z-10 border-t border-white/10 bg-[#0d0d0d]">
       <div className="border-b border-white/10">
-        <div className="mx-auto w-full max-w-7xl px-10 py-12">
+        <div className="mx-auto w-full max-w-5xl px-10 py-12">
           <div className="flex items-center gap-3">
             <span className="flex size-8 items-center justify-center rounded-lg bg-amber-400 text-neutral-950">
               <Zap className="size-4 fill-current" />
@@ -39,7 +39,7 @@ export function LandingFooter() {
       </div>
 
       <div className="border-b border-white/10">
-        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 md:grid-cols-4 md:divide-x md:divide-white/10">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-1 md:grid-cols-4 md:divide-x md:divide-white/10">
           <div className="flex flex-col items-start justify-center border-b border-white/10 p-6 sm:p-10 md:col-span-2 md:border-b-0">
             <h3 className="text-sm font-semibold tracking-normal text-white uppercase">
               Contact us:{" "}

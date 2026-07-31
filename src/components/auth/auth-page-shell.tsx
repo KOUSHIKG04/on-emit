@@ -94,9 +94,9 @@ export function AuthPageShell({
                   key={title}
                   className="bg-background/70 rounded-2xl border p-4 shadow-xl backdrop-blur"
                 >
-                  {/* <span className="bg-primary/12 text-primary flex size-9 items-center justify-center rounded-xl">
+                  <span className="bg-primary/12 text-primary flex size-9 items-center justify-center rounded-xl">
                     <Icon className="size-4" />
-                  </span> */}
+                  </span>
                   <p className="mt-0 text-sm font-semibold">{title}</p>
                   <p className="text-muted-foreground mt-1.5 text-xs leading-5 tracking-wide">
                     {description}

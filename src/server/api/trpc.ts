@@ -37,9 +37,14 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     // Rejected claims lookup should not abort context creation for public procedures.
   }
 
+  const corsairTenantId = userId
+    ? await getActiveCorsairTenantId(db, userId)
+    : null;
+
   return {
     db,
     userId,
+    corsairTenantId,
     ...opts,
   };
 };
@@ -119,20 +124,18 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
 export const publicProcedure = t.procedure.use(timingMiddleware);
 
 export const protectedProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  if (!ctx.userId) {
+  if (!ctx.userId || !ctx.corsairTenantId) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
       message: "You must be signed in.",
     });
   }
 
-  const corsairTenantId = await getActiveCorsairTenantId(ctx.db, ctx.userId);
-
   return next({
     ctx: {
       ...ctx,
       userId: ctx.userId,
-      corsairTenantId,
+      corsairTenantId: ctx.corsairTenantId,
     },
   });
 });

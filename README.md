@@ -35,16 +35,21 @@ On Emit is a Superhuman-style Gmail and Google Calendar command center built wit
 
 ### Environment variables
 
-| Variable                               | Required | Purpose                                                     |
-| -------------------------------------- | -------- | ----------------------------------------------------------- |
-| `APP_URL`                              | Yes      | Public app origin, for example `http://localhost:3000`      |
-| `DATABASE_URL`                         | Yes      | Supabase/Postgres connection string                         |
-| `CORSAIR_KEK`                          | Yes      | Encrypts Corsair credentials and signs tenant webhook URLs  |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Yes      | Supabase project URL                                        |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes      | Supabase publishable/anon key                               |
-| `OPENAI_API_KEY`                       | No       | Enables model-backed priority classification and agent chat |
-| `OPENAI_PRIORITY_MODEL`                | No       | Defaults to `gpt-5.6-luna`                                  |
-| `OPENAI_AGENT_MODEL`                   | No       | Defaults to `gpt-5.6-terra`                                 |
+| Variable                               | Required | Purpose                                                    |
+| -------------------------------------- | -------- | ---------------------------------------------------------- |
+| `APP_URL`                              | Yes      | Public app origin, for example `http://localhost:3000`     |
+| `DATABASE_URL`                         | Yes      | Supabase/Postgres connection string                        |
+| `CORSAIR_KEK`                          | Yes      | Encrypts Corsair credentials and signs tenant webhook URLs |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Yes      | Supabase project URL                                       |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes      | Supabase publishable/anon key                              |
+| `GEMINI_API_KEY`                       | Agent    | Server-only key for the built-in agent                     |
+| `GEMINI_AGENT_MODEL`                   | No       | Optional server-side built-in model override               |
+| `OPENAI_API_KEY`                       | No       | Enables model-backed priority classification               |
+| `OPENAI_PRIORITY_MODEL`                | No       | Optional priority-classifier model override                |
+
+Create the server-side Gemini key in
+[Google AI Studio](https://aistudio.google.com/apikey). Keep it in the hosting
+provider's secret store and never expose it through a `NEXT_PUBLIC_*` variable.
 
 Do not enable Supabase OAuth Server for this app. Supabase is the user identity provider for On Emit; Google OAuth credentials belong in Corsair.
 
@@ -57,6 +62,13 @@ Do not enable Supabase OAuth Server for this app. Supabase is the user identity 
 - Realtime webhook: copy the protected tenant URL displayed in **Connected services**
 
 For local Google webhooks, expose the app with ngrok and set `APP_URL` to the HTTPS tunnel before reconnecting integrations. Complete Corsair's Gmail Pub/Sub and Calendar watch setup in the provided videos; application code cannot create those provider resources without their credentials.
+
+If the Google OAuth consent screen is **External** and still in **Testing**,
+Google expires refresh tokens after seven days for Gmail/Calendar scopes. Keep
+test users configured during development, then move the OAuth app to production
+and complete any required scope verification before launch. An
+`invalid_grant` response requires the user to reconnect the affected service
+once; the agent chat provides that reconnect action inline.
 
 ## Database
 

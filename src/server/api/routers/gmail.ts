@@ -189,6 +189,9 @@ async function listThreadSummaries(
       unread: (thread.messages ?? []).some((message) =>
         message.labelIds?.includes("UNREAD"),
       ),
+      starred: (thread.messages ?? []).some((message) =>
+        message.labelIds?.includes("STARRED"),
+      ),
       messageCount: messages.length,
     };
   });

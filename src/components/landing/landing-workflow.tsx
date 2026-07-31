@@ -26,14 +26,18 @@ const workflow = [
   },
 ] as const;
 
-export function WorkflowSection() {
-  const reduceMotion = useReducedMotion();
-  const reveal = {
+function getRevealAnimation(reduceMotion: boolean | null) {
+  return {
     initial: reduceMotion ? { opacity: 1 } : { opacity: 0, y: 24 },
     whileInView: { opacity: 1, y: 0 },
     viewport: { once: true, margin: "-80px" },
     transition: { duration: reduceMotion ? 0 : 0.65, ease: "easeOut" as const },
   };
+}
+
+export function WorkflowSection() {
+  const reduceMotion = useReducedMotion();
+  const reveal = getRevealAnimation(reduceMotion);
 
   return (
     <section id="workflow" className="border-y border-white/8 bg-[#101010]">
@@ -46,7 +50,7 @@ export function WorkflowSection() {
             <p className="text-xs font-semibold tracking-[0.18em] text-amber-300 uppercase">
               From setup to flow
             </p>
-            <h2 className="mt-4 text-4xl leading-[1.02] font-semibold tracking-[-0.055em] sm:text-6xl">
+            <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl leading-[1.08] font-semibold tracking-[-0.04em]">
               Connected in minutes.
               <br />
               Useful every hour.
@@ -90,12 +94,7 @@ export function WorkflowSection() {
 
 export function LandingCta() {
   const reduceMotion = useReducedMotion();
-  const reveal = {
-    initial: reduceMotion ? { opacity: 1 } : { opacity: 0, y: 24 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-80px" },
-    transition: { duration: reduceMotion ? 0 : 0.65, ease: "easeOut" as const },
-  };
+  const reveal = getRevealAnimation(reduceMotion);
 
   return (
     <section className="relative px-6 py-24 sm:px-10 lg:px-12 lg:py-36">
@@ -108,7 +107,7 @@ export function LandingCta() {
           className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.7),transparent_26%),linear-gradient(120deg,transparent_55%,rgba(0,0,0,0.08))]"
         />
         <Zap className="relative mx-auto size-10 fill-current" />
-        <h2 className="relative mx-auto mt-6 max-w-4xl text-4xl leading-[0.98] font-semibold tracking-[-0.06em] text-balance sm:text-6xl lg:text-7xl">
+        <h2 className="relative mx-auto mt-6 max-w-3xl text-3xl sm:text-4xl lg:text-5xl leading-[1.04] font-semibold tracking-[-0.05em] text-balance">
           Your work already emits signals. Act on the right ones.
         </h2>
         <p className="relative mx-auto mt-6 max-w-xl text-sm leading-6 text-neutral-800/70 sm:text-base">

@@ -18,12 +18,12 @@ export function LandingHero() {
           transition={{ duration: reduceMotion ? 0 : 0.7, ease: "easeOut" }}
           className="mx-auto max-w-xl text-center lg:mx-0 lg:text-left"
         >
-          <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-amber-300 uppercase">
+          {/* <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-amber-300 uppercase">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             Gmail + Calendar + AI
-          </div>
+          </div> */}
 
-          <h1 className="mt-6 text-[clamp(3.1rem,5.3vw,5rem)] leading-[0.94] font-semibold tracking-[-0.065em] text-balance">
+          <h1 className="mt-6 text-3xl leading-[1.05] font-semibold tracking-[-0.045em] text-balance sm:text-4xl lg:text-5xl">
             Your workday in{" "}
             <span className="text-amber-300">one clear view.</span>
           </h1>
@@ -36,23 +36,23 @@ export function LandingHero() {
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
             <Link
               href="/signup"
-              className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-semibold text-neutral-950 transition-all hover:bg-amber-300 hover:shadow-[0_0_36px_rgba(250,204,21,0.2)]"
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 text-xs font-semibold text-neutral-800 uppercase transition-all hover:bg-amber-300"
             >
               Create your workspace
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
             </Link>
             <a
               href="#features"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/12 bg-white/[0.03] px-5 text-sm font-medium text-white/75 transition-colors hover:bg-white/[0.07] hover:text-white"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/12 bg-white/[0.03] px-5 text-xs font-medium text-white/75 uppercase transition-colors hover:bg-white/[0.07] hover:text-white"
             >
               Explore features
             </a>
           </div>
 
-          <div className="mt-7 flex items-center justify-center gap-2 text-xs text-white/32 lg:justify-start">
+          {/* <div className="mt-7 flex items-center justify-center gap-2 text-xs text-white/32 lg:justify-start">
             <Zap className="size-3.5 fill-amber-300 text-amber-300" />
             Multiple Google accounts · Free Gemini mode · BYOK
-          </div>
+          </div> */}
         </motion.div>
 
         <motion.div

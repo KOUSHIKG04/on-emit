@@ -189,4 +189,3 @@ export function CartesianRoot<TData extends Row>({
   );
 }
 
-export type AreaChartProps<TData extends Row> = CartesianChartProps<TData>;

@@ -4,11 +4,15 @@ export const AI_PROVIDER_OPTIONS = [
     label: "Google Gemini",
     keyLabel: "Gemini API key",
     keyPlaceholder: "Enter your Google AI Studio key",
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.5-flash-lite",
     models: [
-      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { id: "gemini-3.6-flash", label: "Gemini 3.6 Flash" },
       { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
       { id: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
+      { id: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
+      { id: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview" },
+      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
     ],
   },
   {
@@ -24,16 +28,22 @@ export const AI_PROVIDER_OPTIONS = [
     label: "OpenAI",
     keyLabel: "OpenAI API key",
     keyPlaceholder: "Enter your OpenAI key",
-    defaultModel: "gpt-5.2",
-    models: [{ id: "gpt-5.2", label: "GPT-5.2" }],
+    defaultModel: "gpt-4o-mini",
+    models: [
+      { id: "gpt-4o-mini", label: "GPT-4o Mini" },
+      { id: "gpt-4o", label: "GPT-4o" },
+    ],
   },
   {
     id: "anthropic",
     label: "Anthropic Claude",
     keyLabel: "Claude API key",
     keyPlaceholder: "Enter your Anthropic key",
-    defaultModel: "claude-sonnet-5",
-    models: [{ id: "claude-sonnet-5", label: "Claude Sonnet 5" }],
+    defaultModel: "claude-3-5-haiku-latest",
+    models: [
+      { id: "claude-3-5-haiku-latest", label: "Claude 3.5 Haiku" },
+      { id: "claude-3-5-sonnet-latest", label: "Claude 3.5 Sonnet" },
+    ],
   },
 ] as const;
 

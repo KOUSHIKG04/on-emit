@@ -46,20 +46,13 @@ export function Tooltip({
       {show && items.length > 0 && (
         <motion.div
           key="dither-tooltip"
-          initial={{
-            opacity: 0,
-            x: "-50%",
-            y: "-115%",
+          style={{
             top: chart.tooltipTop,
             left: chart.tooltipLeft,
+            transform: "translate(-50%, -115%)",
           }}
-          animate={{
-            opacity: 1,
-            x: "-50%",
-            y: "-115%",
-            top: chart.tooltipTop,
-            left: chart.tooltipLeft,
-          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{
             type: "spring",

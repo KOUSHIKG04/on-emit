@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -16,20 +17,32 @@ import {
   ArrowUp,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Ghost2,
   Clock3,
   LoaderCircle,
+  Mail,
   Paperclip,
   Search,
   ShieldCheck,
   Sparkles,
+  Settings,
   Trash2,
   UserRound,
   X,
 } from "@/components/icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AgentMarkdown } from "@/components/agent/agent-markdown";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Message,
   MessageAvatar,
@@ -56,7 +69,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api } from "@/trpc/client";
 import { cn } from "@/lib/utils";
-import { getAiModelLabel, getAiProviderLabel } from "@/lib/ai-providers";
+import {
+  getAiModelLabel,
+  getAiProviderLabel,
+  type AiProvider,
+} from "@/lib/ai-providers";
 import type { AgentConversationContext } from "@/stores/workspace-store";
 
 type Values = { message: string };
@@ -75,6 +92,7 @@ type ChatMessage = {
   content: string;
   attachments?: AgentAttachment[];
   actionId?: string;
+  reconnectPlugin?: "gmail" | "googlecalendar";
 };
 
 type QueuedAction = {
@@ -99,6 +117,8 @@ const STORAGE_KEY = "on-emit.agent-conversations";
 const MAX_ATTACHMENTS = 3;
 const MAX_ATTACHMENT_BYTES = 2_500_000;
 const MAX_TOTAL_ATTACHMENT_BYTES = 3_000_000;
+const MAX_HISTORY_MESSAGES = 12;
+const MAX_HISTORY_MESSAGE_LENGTH = 2_000;
 const ACCEPTED_IMAGE_TYPES = new Set<AgentAttachment["mimeType"]>([
   "image/jpeg",
   "image/png",
@@ -208,6 +228,9 @@ function isConversation(value: unknown): value is StoredConversation {
         (message.role === "user" || message.role === "assistant") &&
         typeof message.content === "string" &&
         (message.actionId == null || typeof message.actionId === "string") &&
+        (message.reconnectPlugin == null ||
+          message.reconnectPlugin === "gmail" ||
+          message.reconnectPlugin === "googlecalendar") &&
         (message.attachments == null ||
           (Array.isArray(message.attachments) &&
             message.attachments.every(isAttachment))),
@@ -254,6 +277,18 @@ function formatUpdatedAt(timestamp: number) {
       ? { hour: "numeric", minute: "2-digit" }
       : { month: "short", day: "numeric" }),
   }).format(date);
+}
+
+function plainActionSummary(summary: string) {
+  return summary
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[-+]\s+/gm, "")
+    .replace(/(?:\*\*|__)(.*?)(?:\*\*|__)/g, "$1")
+    .replace(/[*~`>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 type ActionsPanelProps = {
@@ -330,7 +365,7 @@ function ActionsPanel({
                     {action.request || "Attached image request"}
                   </p>
                   <p className="text-muted-foreground mt-1 line-clamp-3 text-xs leading-5">
-                    {action.summary}
+                    {plainActionSummary(action.summary)}
                   </p>
                   <p className="text-muted-foreground mt-2 text-[11px]">
                     {formatUpdatedAt(action.createdAt)}
@@ -379,6 +414,7 @@ export function AgentChat({
 }: {
   variant?: "page" | "panel";
 } = {}) {
+  const utils = api.useUtils();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
@@ -404,6 +440,8 @@ export function AgentChat({
     (state) => state.clearAgentChatCommand,
   );
   const chat = api.agent.chat.useMutation();
+  const reconnect = api.integrations.connect.useMutation();
+  const updateAiMode = api.aiSettings.update.useMutation();
   const settingsQuery = api.aiSettings.get.useQuery(undefined, {
     staleTime: 60_000,
   });
@@ -418,6 +456,51 @@ export function AgentChat({
   const greeting = hydrated
     ? `Good ${new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening"}`
     : "Welcome";
+  const aiSettings = settingsQuery.data;
+  const aiModeLabel =
+    aiSettings?.source === "byok"
+      ? getAiModelLabel(aiSettings.provider, aiSettings.model)
+      : "Default AI";
+
+  async function reconnectGoogle(plugin: "gmail" | "googlecalendar") {
+    const name = plugin === "gmail" ? "Gmail" : "Google Calendar";
+
+    try {
+      const result = await reconnect.mutateAsync({ plugin });
+      toast.info(`Opening ${name} authorization...`);
+      window.location.assign(result.connectUrl);
+    } catch (error) {
+      toast.error(`Could not reconnect ${name}`, {
+        description:
+          error instanceof Error
+            ? error.message
+            : "Could not generate an authorization link.",
+      });
+    }
+  }
+
+  async function switchAiMode(
+    target:
+      | { source: "default" }
+      | { source: "byok"; provider: AiProvider; model: string },
+  ) {
+    if (updateAiMode.isPending) return;
+
+    try {
+      await updateAiMode.mutateAsync(target);
+      await utils.aiSettings.get.invalidate();
+
+      toast.success(
+        target.source === "default"
+          ? "Default AI selected."
+          : `${getAiProviderLabel(target.provider)} BYOK selected.`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not switch AI mode.",
+      );
+    }
+  }
 
   useEffect(() => {
     let storedConversations: Conversation[] = [];
@@ -457,6 +540,7 @@ export function AgentChat({
             updatedAt: item.updatedAt,
             messages: item.messages,
             actions: [...storedActions, ...legacyActions],
+            ...(item.context ? { context: item.context } : {}),
           };
         });
       }
@@ -699,7 +783,17 @@ export function AgentChat({
           mimeType: attachment.mimeType,
           dataUrl: attachment.dataUrl,
         })),
+        history: selectedConversation.messages
+          .filter((historyMessage) => historyMessage.content.trim().length > 0)
+          .slice(-MAX_HISTORY_MESSAGES)
+          .map((historyMessage) => ({
+            role: historyMessage.role,
+            content: historyMessage.content
+              .trim()
+              .slice(-MAX_HISTORY_MESSAGE_LENGTH),
+          })),
         confirmed,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       });
       const queuedActionId = result.requiresApproval ? createId() : undefined;
       const assistantMessage: ChatMessage = {
@@ -707,6 +801,7 @@ export function AgentChat({
         role: "assistant",
         content: result.reply,
         actionId: queuedActionId,
+        reconnectPlugin: result.reconnectPlugin ?? undefined,
       };
 
       setConversations((current) =>
@@ -719,7 +814,13 @@ export function AgentChat({
                 actions: confirmed
                   ? conversation.actions.map((action) =>
                       action.id === actionId
-                        ? { ...action, status: "completed" as const }
+                        ? {
+                            ...action,
+                            status:
+                              result.actionSucceeded === false
+                                ? ("pending" as const)
+                                : ("completed" as const),
+                          }
                         : action,
                     )
                   : result.requiresApproval && queuedActionId
@@ -739,9 +840,29 @@ export function AgentChat({
             : conversation,
         ),
       );
-      if (confirmed) toast.success("Agent action completed.");
+      if (confirmed) {
+        if (result.actionSucceeded === false) {
+          toast.error(result.reply);
+        } else {
+          await Promise.all([
+            utils.calendar.upcoming.invalidate(),
+            utils.calendar.range.invalidate(),
+            utils.gmail.inbox.invalidate(),
+          ]);
+          toast.success("Agent action completed.");
+        }
+      }
       if (result.requiresApproval) toast.success("Action added to the queue.");
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "The agent could not respond.";
+      const reconnectPlugin =
+        /Gmail connection has expired/i.test(errorMessage)
+          ? ("gmail" as const)
+          : /Google Calendar connection has expired/i.test(errorMessage)
+            ? ("googlecalendar" as const)
+            : null;
+
       if (actionId) {
         setConversations((current) =>
           current.map((conversation) =>
@@ -758,9 +879,30 @@ export function AgentChat({
           ),
         );
       }
-      toast.error(
-        error instanceof Error ? error.message : "The agent could not respond.",
-      );
+
+      if (reconnectPlugin) {
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === conversationId
+              ? {
+                  ...conversation,
+                  updatedAt: Date.now(),
+                  messages: [
+                    ...conversation.messages,
+                    {
+                      id: createId(),
+                      role: "assistant" as const,
+                      content: errorMessage,
+                      reconnectPlugin,
+                    },
+                  ],
+                }
+              : conversation,
+          ),
+        );
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setPendingConversationId(null);
     }
@@ -820,7 +962,7 @@ export function AgentChat({
         </SheetContent>
       </Sheet>
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {activeConversation?.context?.type === "gmail-thread" ? (
           <div className="bg-card flex shrink-0 items-center gap-2 border-b px-4 py-2.5 text-xs">
             <Ghost2 className="text-primary size-4 shrink-0" />
@@ -830,15 +972,15 @@ export function AgentChat({
             </span>
           </div>
         ) : null}
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {activeConversation ? (
             <MessageScrollerProvider
               key={activeConversation.id}
               autoScroll
-              defaultScrollPosition="last-anchor"
+              defaultScrollPosition="end"
             >
               <MessageScroller>
-                <MessageScrollerViewport>
+                <MessageScrollerViewport aria-label="Agent conversation">
                   <MessageScrollerContent
                     className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6"
                     aria-busy={isActiveConversationPending}
@@ -913,6 +1055,7 @@ export function AgentChat({
                     ) : (
                       activeConversation.messages.map((message) => {
                         const isUser = message.role === "user";
+                        const reconnectPlugin = message.reconnectPlugin;
                         const queuedAction = message.actionId
                           ? activeConversation.actions.find(
                               (action) => action.id === message.actionId,
@@ -923,7 +1066,6 @@ export function AgentChat({
                           <MessageScrollerItem
                             key={message.id}
                             messageId={message.id}
-                            scrollAnchor={isUser}
                           >
                             <Message align={isUser ? "end" : "start"}>
                               <MessageAvatar>
@@ -974,10 +1116,44 @@ export function AgentChat({
                                   variant={isUser ? "default" : "muted"}
                                   align={isUser ? "end" : "start"}
                                 >
-                                  <BubbleContent className="whitespace-pre-wrap">
-                                    {message.content}
+                                  <BubbleContent
+                                    className={
+                                      isUser ? "whitespace-pre-wrap" : undefined
+                                    }
+                                  >
+                                    {isUser ? (
+                                      message.content
+                                    ) : (
+                                      <AgentMarkdown>
+                                        {message.content}
+                                      </AgentMarkdown>
+                                    )}
                                   </BubbleContent>
                                 </Bubble>
+                                {reconnectPlugin ? (
+                                  <MessageFooter>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={reconnect.isPending}
+                                      onClick={() =>
+                                        void reconnectGoogle(reconnectPlugin)
+                                      }
+                                    >
+                                      {reconnect.isPending ? (
+                                        <LoaderCircle className="animate-spin" />
+                                      ) : reconnectPlugin === "gmail" ? (
+                                        <Mail />
+                                      ) : (
+                                        <CalendarDays />
+                                      )}
+                                      Reconnect{" "}
+                                      {reconnectPlugin === "gmail"
+                                        ? "Gmail"
+                                        : "Google Calendar"}
+                                    </Button>
+                                  </MessageFooter>
+                                ) : null}
                                 {queuedAction ? (
                                   <MessageFooter>
                                     <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
@@ -1073,7 +1249,7 @@ export function AgentChat({
 
             <Textarea
               rows={2}
-              className="max-h-32 min-h-14 resize-none rounded-none border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:border-transparent focus-visible:ring-0 md:text-base dark:bg-transparent"
+              className="max-h-32 min-h-14 resize-none rounded-none border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:none focus-visible:ring-0 md:text-base dark:bg-transparent"
               placeholder="Tell the agent what to do..."
               disabled={!hydrated || chat.isPending}
               {...register("message")}
@@ -1134,25 +1310,86 @@ export function AgentChat({
               </div>
 
               <div className="flex shrink-0 items-center gap-1">
-                {activeConversation && settingsQuery.data?.source === "byok" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled
-                    aria-label={`Agent model: ${getAiProviderLabel(
-                      settingsQuery.data.provider,
-                    )} ${settingsQuery.data.model}`}
-                  >
-                    <Sparkles />
-                    <span className="max-w-52 truncate">
-                      {getAiProviderLabel(settingsQuery.data.provider)} ·{" "}
-                      {getAiModelLabel(
-                        settingsQuery.data.provider,
-                        settingsQuery.data.model,
+                {activeConversation ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={
+                        settingsQuery.isLoading || updateAiMode.isPending
+                      }
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`AI mode: ${aiModeLabel}`}
+                        />
+                      }
+                    >
+                      {updateAiMode.isPending ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : (
+                        <Sparkles />
                       )}
-                    </span>
-                  </Button>
+                      <span className="max-w-52 truncate">{aiModeLabel}</span>
+                      <ChevronDown className="text-muted-foreground" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-72">
+                      {/* <DropdownMenuLabel>AI mode</DropdownMenuLabel> */}
+                      <DropdownMenuItem
+                        disabled={
+                          updateAiMode.isPending ||
+                          aiSettings?.hasDefaultKey === false
+                        }
+                        onClick={() =>
+                          void switchAiMode({ source: "default" })
+                        }
+                      >
+                        <CheckCircle2
+                          className={cn(
+                            aiSettings?.source === "default"
+                              ? "text-emerald-500"
+                              : "opacity-0",
+                          )}
+                        />
+                        <span className="flex min-w-0 flex-col">
+                          <span>Default AI</span>
+                          <span className="text-muted-foreground text-xs">
+                            App-provided private default
+                          </span>
+                        </span>
+                      </DropdownMenuItem>
+
+                      {aiSettings?.source === "byok" ? (
+                        <DropdownMenuItem
+                          disabled={updateAiMode.isPending}
+                          onClick={() =>
+                            void switchAiMode({
+                              source: "byok",
+                              provider: aiSettings.provider,
+                              model: aiSettings.model,
+                            })
+                          }
+                        >
+                          <CheckCircle2 className="text-emerald-500" />
+                          <span className="flex min-w-0 flex-col">
+                            <span>BYOK</span>
+                            <span className="text-muted-foreground max-w-60 truncate text-xs">
+                              {getAiModelLabel(
+                                aiSettings.provider,
+                                aiSettings.model,
+                              )}
+                            </span>
+                          </span>
+                        </DropdownMenuItem>
+                      ) : null}
+
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem render={<Link href="/settings" />}>
+                        <Settings />
+                        Add or manage BYOK
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 ) : null}
 
                 <Button
