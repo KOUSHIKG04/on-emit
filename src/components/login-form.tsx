@@ -37,7 +37,9 @@ export function LoginForm({
     : `/signup?next=${encodeURIComponent(nextPath)}`;
   const errorMessage = errorCode
     ? (authErrors[errorCode] ??
-      "Sign in failed. Please try again or sign in with Google.")
+      (isSignup
+        ? "Account creation failed. Please try again with Google."
+        : "Sign in failed. Please try again with Google."))
     : undefined;
 
   return (

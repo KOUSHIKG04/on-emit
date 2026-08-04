@@ -57,6 +57,13 @@
       "when": 1785399000000,
       "tag": "0007_secure_app_internal_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785456000000,
+      "tag": "0008_enforce_single_active_google_account",
+      "breakpoints": true
     }
   ]
 }

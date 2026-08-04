@@ -37,9 +37,15 @@ const messages = [
   },
 ] as const;
 
-export function ProductCanvas({ reduceMotion }: { reduceMotion: boolean }) {
+export function ProductCanvas({
+  reduceMotion,
+  userName = "",
+}: {
+  reduceMotion: boolean;
+  userName?: string;
+}) {
   return (
-    <div className="relative [perspective:1400px]" aria-hidden>
+    <div className="relative perspective-[1400px]" aria-hidden>
       <motion.div
         className="absolute -inset-12 rounded-full bg-amber-300/8 blur-3xl"
         animate={
@@ -100,11 +106,11 @@ export function ProductCanvas({ reduceMotion }: { reduceMotion: boolean }) {
           <div className="min-w-0 p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[9px] font-medium tracking-[0.1em] text-white/28 uppercase">
+                <p className="text-[9px] font-medium tracking-widest text-white/28 uppercase">
                   Wednesday, July 23
                 </p>
                 <h3 className="mt-1.5 text-lg font-semibold tracking-[-0.035em]">
-                  Good morning, Koushik
+                  Good morning, {userName || ""}
                 </h3>
               </div>
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-300/10 text-amber-300">

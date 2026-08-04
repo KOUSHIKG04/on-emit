@@ -160,19 +160,20 @@ export function AiProviderSettings({ className }: { className?: string }) {
           <>
             <div className="mb-4 flex justify-end">
               <a
-                href="https://aistudio.google.com/apikey"
+                href={providerOption.keyUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-primary text-sm underline-offset-4 hover:underline"
               >
-                Get a free Gemini API key
+                {providerOption.keyUrlLabel}
               </a>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="grid content-start gap-2">
-                <Label>Provider</Label>
+                <Label id="ai-provider-label">Provider</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger
+                    aria-labelledby="ai-provider-label"
                     render={
                       <Button
                         type="button"
@@ -252,9 +253,10 @@ export function AiProviderSettings({ className }: { className?: string }) {
               </div>
 
               <div className="grid content-start gap-2 md:col-span-2 xl:col-span-1">
-                <Label>Model</Label>
+                <Label id="ai-model-label">Model</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger
+                    aria-labelledby="ai-model-label"
                     render={
                       <Button
                         type="button"

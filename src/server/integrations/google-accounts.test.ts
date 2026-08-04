@@ -3,7 +3,12 @@ import test from "node:test";
 
 import {
   createCorsairGoogleTenantId,
+  getActiveCorsairTenantId,
+  getActiveGoogleAccount,
+  getGoogleAccountOwnerUserId,
   isMissingGoogleAccountsSchema,
+  listGoogleAccounts,
+  type Database,
 } from "./google-accounts";
 
 void test("creates a separate Corsair tenant for every Google account slot", () => {
@@ -30,7 +35,7 @@ void test("recognizes wrapped missing-table errors", () => {
   );
 });
 
-void test("getActiveGoogleAccount returns active account or fallback", async () => {
+void test("getActiveGoogleAccount returns the active account", async () => {
   const mockAccount = {
     id: "acc-1",
     userId: "user-1",
@@ -49,13 +54,9 @@ void test("getActiveGoogleAccount returns active account or fallback", async () 
         }),
       }),
     }),
-  } as unknown as Parameters<
-    typeof import("./google-accounts").getActiveGoogleAccount
-  >[0];
+  } as unknown as Database;
 
-  const active = await (
-    await import("./google-accounts")
-  ).getActiveGoogleAccount(mockDb, "user-1");
+  const active = await getActiveGoogleAccount(mockDb, "user-1");
   assert.deepEqual(active, mockAccount);
 });
 
@@ -70,13 +71,9 @@ void test("getActiveCorsairTenantId returns fallback user id when missing schema
         },
       }),
     }),
-  } as unknown as Parameters<
-    typeof import("./google-accounts").getActiveCorsairTenantId
-  >[0];
+  } as unknown as Database;
 
-  const tenantId = await (
-    await import("./google-accounts")
-  ).getActiveCorsairTenantId(mockDb, "user-1");
+  const tenantId = await getActiveCorsairTenantId(mockDb, "user-1");
   assert.equal(tenantId, "user-1");
 });
 
@@ -91,17 +88,13 @@ void test("listGoogleAccounts returns empty array on missing schema error", asyn
         },
       }),
     }),
-  } as unknown as Parameters<
-    typeof import("./google-accounts").listGoogleAccounts
-  >[0];
+  } as unknown as Database;
 
-  const accounts = await (
-    await import("./google-accounts")
-  ).listGoogleAccounts(mockDb, "user-1");
+  const accounts = await listGoogleAccounts(mockDb, "user-1");
   assert.deepEqual(accounts, []);
 });
 
-void test("getGoogleAccountOwnerUserId resolves owner or defaults to tenant id", async () => {
+void test("getGoogleAccountOwnerUserId resolves the account owner", async () => {
   const mockDb = {
     select: () => ({
       from: () => ({
@@ -110,12 +103,8 @@ void test("getGoogleAccountOwnerUserId resolves owner or defaults to tenant id",
         }),
       }),
     }),
-  } as unknown as Parameters<
-    typeof import("./google-accounts").getGoogleAccountOwnerUserId
-  >[0];
+  } as unknown as Database;
 
-  const owner = await (
-    await import("./google-accounts")
-  ).getGoogleAccountOwnerUserId(mockDb, "tenant-abc");
+  const owner = await getGoogleAccountOwnerUserId(mockDb, "tenant-abc");
   assert.equal(owner, "owner-123");
 });

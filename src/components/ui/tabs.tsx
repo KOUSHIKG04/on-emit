@@ -26,7 +26,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 items-center justify-center rounded-lg p-1",
+        "bg-muted/60 text-muted-foreground border-border/60 inline-flex h-9 items-center justify-center rounded-xl border p-1",
         className,
       )}
       {...props}
@@ -42,7 +42,7 @@ function TabsTrigger({
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 data-active:bg-background data-active:text-foreground data-selected:bg-background data-selected:text-foreground aria-selected:bg-background aria-selected:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-all outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-selected:shadow-xs data-active:shadow-xs data-selected:shadow-xs data-[state=active]:shadow-xs [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
+        "text-muted-foreground hover:text-foreground focus-visible:border-ring focus-visible:ring-ring/40 data-active:bg-background data-active:text-foreground data-selected:bg-background data-selected:text-foreground aria-selected:bg-background aria-selected:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-[color,background-color,box-shadow] outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 aria-selected:shadow-xs data-active:shadow-xs data-selected:shadow-xs data-[state=active]:shadow-xs [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",
         className,
       )}
       {...props}

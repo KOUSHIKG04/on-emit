@@ -188,4 +188,3 @@ export function CartesianRoot<TData extends Row>({
     </ChartContext>
   );
 }
-

@@ -26,10 +26,7 @@ function isEmailHeightMessage(value: unknown): value is EmailHeightMessage {
   );
 }
 
-export function EmailHtmlFrame({
-  htmlDocument,
-  title,
-}: EmailHtmlFrameProps) {
+export function EmailHtmlFrame({ htmlDocument, title }: EmailHtmlFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(440);
 

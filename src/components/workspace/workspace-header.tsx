@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import {
-  ChartBar,
   Ghost2,
   CalendarDays,
   Inbox,
@@ -23,7 +22,7 @@ const viewDetails = {
   },
   "/focus": {
     label: "Focus",
-    description: "Inbox and schedule at a glance",
+    description: "Daily priorities, inbox, schedule, and analytics",
     icon: FocusCentered,
   },
   "/inbox": {
@@ -45,11 +44,6 @@ const viewDetails = {
     label: "Settings",
     description: "Manage Google accounts, connections, and AI preferences",
     icon: Settings,
-  },
-  "/analytics": {
-    label: "Analytics",
-    description: "Track inbox activity and your upcoming schedule",
-    icon: ChartBar,
   },
 } as const;
 

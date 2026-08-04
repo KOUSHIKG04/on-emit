@@ -1,9 +1,5 @@
-import { AnalyticsDashboard } from "@/components/workspace/analytics-dashboard";
+import { redirect } from "next/navigation";
 
 export default function AnalyticsPage() {
-  return (
-    <main className="grid min-h-0 flex-1 overflow-auto">
-      <AnalyticsDashboard />
-    </main>
-  );
+  redirect("/focus");
 }

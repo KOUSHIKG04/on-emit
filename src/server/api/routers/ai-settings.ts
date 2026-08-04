@@ -8,6 +8,7 @@ import {
   DEFAULT_AI_PROVIDER,
   getDefaultAiModel,
   isAiProvider,
+  normalizeLegacyAiModel,
   type AiProvider,
 } from "@/lib/ai-providers";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
@@ -67,12 +68,8 @@ export const aiSettingsRouter = createTRPCRouter({
       savedProviders.push(provider);
     }
 
-    const storedModel = settings?.model?.trim() || getDefaultAiModel(provider);
-    const userModel =
-      provider === "gemini" &&
-      /^(?:models\/)?gemini-2\.0-flash(?:-lite)?$/i.test(storedModel)
-        ? getDefaultAiModel("gemini")
-        : storedModel;
+    const storedModel = settings?.model.trim() ?? getDefaultAiModel(provider);
+    const userModel = normalizeLegacyAiModel(provider, storedModel);
 
     if (source === "default") {
       return {
@@ -171,11 +168,7 @@ export const aiSettingsRouter = createTRPCRouter({
         input.source === "default" ? DEFAULT_AI_PROVIDER : input.provider;
       const requestedModel =
         input.source === "default" ? env.GEMINI_AGENT_MODEL : input.model;
-      const model =
-        provider === "gemini" &&
-        /^(?:models\/)?gemini-2\.0-flash(?:-lite)?$/i.test(requestedModel)
-          ? getDefaultAiModel("gemini")
-          : requestedModel;
+      const model = normalizeLegacyAiModel(provider, requestedModel);
       const now = new Date();
 
       await ctx.db

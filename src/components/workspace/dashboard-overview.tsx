@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CalendarPlus,
   CheckSquare2,
+  ChevronDown,
   Clock3,
   Inbox,
   MailCheck,
@@ -15,18 +16,25 @@ import {
   MessageCircle,
   RefreshCw,
   Settings,
-  // Sparkles,
+  Sparkles,
   SquarePen,
   SunMedium,
 } from "@/components/icons";
 
 import { EventActions } from "@/components/calendar/event-actions";
+import { QueuedAgentActions } from "@/components/workspace/analytics-bento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
-import { api } from "@/trpc/client";
+import { api, type RouterOutputs } from "@/trpc/client";
 
 function toEventDate(value: string) {
   return new Date(
@@ -74,20 +82,20 @@ export function DashboardOverview({ userName }: { userName: string }) {
   const [now, setNow] = useState<Date | null>(null);
 
   const gmail = api.gmail.stats.useQuery(undefined, {
-    staleTime: 30_000,
+    staleTime: 120_000,
     refetchOnWindowFocus: false,
   });
 
   const inbox = api.gmail.inbox.useQuery(
     { maxResults: 12 },
     {
-      staleTime: 30_000,
+      staleTime: 120_000,
       refetchOnWindowFocus: false,
     },
   );
 
   const calendar = api.calendar.upcoming.useQuery(undefined, {
-    staleTime: 30_000,
+    staleTime: 120_000,
     refetchOnWindowFocus: false,
   });
 
@@ -140,13 +148,6 @@ export function DashboardOverview({ userName }: { userName: string }) {
         day: "numeric",
       }).format(now)
     : "Your daily command center";
-
-  const generatedTime = now
-    ? new Intl.DateTimeFormat(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-      }).format(now)
-    : null;
 
   async function refreshBrief() {
     await Promise.all([gmail.refetch(), inbox.refetch(), calendar.refetch()]);
@@ -206,55 +207,42 @@ export function DashboardOverview({ userName }: { userName: string }) {
     router.push("/inbox");
   }
 
-  const summary = gmail.error
-    ? "Connect Gmail in Settings to include your inbox in the daily brief."
-    : calendar.error
-      ? `${gmail.data?.unread ?? 0} unread messages are ready for review. Connect Calendar to complete your brief.`
-      : `${gmail.data?.unread ?? 0} unread message${
-          gmail.data?.unread === 1 ? "" : "s"
-        } and ${todayMeetings.length} meeting${
-          todayMeetings.length === 1 ? "" : "s"
-        } are on your radar today.`;
-
   return (
-    <div className="bg-background min-h-full w-full overflow-x-hidden">
-      <div className="w-full p-0">
-        <section className="bg-card flex w-full flex-col gap-6 border-b p-5 md:p-8 xl:flex-row xl:items-end xl:justify-between xl:p-10">
+    <div className="bg-muted/25 flex min-h-[calc(100svh-4rem)] w-full font-sans">
+      <div className="flex min-h-full w-full flex-1 flex-col">
+        <section className="from-primary/10 via-card to-card border-primary/15 flex w-full flex-col justify-center overflow-hidden border-b bg-linear-to-br p-6 md:p-8 xl:flex-row xl:items-center xl:justify-between xl:p-10">
           <div className="max-w-4xl">
-            <p className="text-primary text-xs font-semibold tracking-[0.18em] uppercase">
-              {dateLabel}
-            </p>
-
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl xl:text-5xl">
+            <h1 className="text-3xl font-semibold tracking-[-0.03em] text-balance sm:text-4xl xl:text-5xl">
               {getGreeting(now)}, {userName}
             </h1>
-
-            <p className="text-muted-foreground mt-3 max-w-3xl text-sm leading-6 md:text-base">
-              {summary}
-            </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isRefreshing}
-              onClick={() => void refreshBrief()}
-            >
-              <RefreshCw
-                className={cn("size-4", isRefreshing && "animate-spin")}
-              />
-              Refresh
-            </Button>
+          <div className="mt-7 xl:mt-0 xl:text-right">
+            <p className="text-muted-foreground mb-3 text-xs font-medium">
+              {dateLabel}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isRefreshing}
+                onClick={() => void refreshBrief()}
+              >
+                <RefreshCw
+                  className={cn("size-4", isRefreshing && "animate-spin")}
+                />
+                Refresh
+              </Button>
 
-            <Button type="button" onClick={askAboutBrief}>
-              <MessageCircle className="size-4" />
-              Ask about this brief
-            </Button>
+              <Button type="button" onClick={askAboutBrief}>
+                <MessageCircle className="size-4" />
+                Ask about this brief
+              </Button>
+            </div>
           </div>
         </section>
 
-        <section className="bg-card grid overflow-hidden md:grid-cols-3">
+        <section className="bg-card grid overflow-hidden border-b md:grid-cols-4">
           <MetricCard
             title="Read email"
             description="Messages already reviewed"
@@ -266,11 +254,7 @@ export function DashboardOverview({ userName }: { userName: string }) {
 
           <MetricCard
             title="Unread email"
-            description={
-              priorityThreads.length > 0
-                ? `${priorityThreads.length} high priority in the latest mail`
-                : "Messages waiting for your attention"
-            }
+            description="Messages waiting for your attention"
             value={gmail.data?.unread}
             loading={gmail.isLoading}
             error={Boolean(gmail.error)}
@@ -290,237 +274,307 @@ export function DashboardOverview({ userName }: { userName: string }) {
             error={Boolean(calendar.error)}
             icon={CalendarDays}
           />
+
+          <MetricCard
+            title="Priority mail"
+            description={
+              priorityThreads.length > 0
+                ? "High-priority conversations in your latest mail"
+                : "No urgent conversations detected"
+            }
+            value={priorityThreads.length}
+            loading={inbox.isLoading}
+            error={Boolean(inbox.error)}
+            icon={Sparkles}
+          />
         </section>
 
-        <section className="grid w-full grid-cols-1 xl:grid-cols-12">
-          <Card className="overflow-hidden rounded-none py-0 xl:col-span-8">
-            <CardContent className="h-full p-6 md:p-8">
-              <SectionLabel icon={SunMedium}>Your daily brief</SectionLabel>
+        <section className="flex min-h-0 flex-1 flex-col">
+          {/* <div className="bg-card border-y px-6 py-5 md:px-8">
+            <h2 className="text-xl font-semibold tracking-[-0.02em]">Today</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Review pending work, priorities, and your schedule.
+            </p>
+          </div> */}
 
-              {isLoading ? (
-                <BriefSkeleton />
-              ) : (
-                <div className="text-muted-foreground mt-6 space-y-1 text-sm leading-7 md:text-base">
-                  <p>
-                    {gmail.error
-                      ? "Your Gmail summary is unavailable until the Corsair Gmail connection is restored in Settings."
-                      : gmail.data?.unread
-                        ? `Your inbox has ${gmail.data.unread} unread message${
-                            gmail.data.unread === 1 ? "" : "s"
-                          }. ${
-                            priorityThreads.length > 0
-                              ? `${priorityThreads.length} of the most recent conversations ${
-                                  priorityThreads.length === 1 ? "is" : "are"
-                                } marked high priority.`
-                              : "None of the latest conversations has a strong urgency signal."
-                          }`
-                        : "Your inbox is clear with no unread messages waiting for review."}
-                  </p>
+          <div className="bg-card grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden border-b xl:grid-cols-10 xl:grid-rows-[auto_minmax(10rem,1fr)_auto]">
+            <NeedsAttention
+              isLoading={isLoading}
+              priorityThreads={priorityThreads}
+              todayMeetings={todayMeetings}
+              onOpenThread={openThread}
+            />
 
-                  <p>
-                    {inbox.error
-                      ? "Recent conversation details could not be loaded for this brief."
-                      : threads.length > 0
-                        ? `Recent mail includes “${
-                            threads[0]?.subject ?? "No subject"
-                          }”${
-                            threads[1] ? ` and “${threads[1].subject}”` : ""
-                          }.`
-                        : "There are no recent inbox conversations to summarize."}
-                  </p>
+            <Card className="overflow-hidden rounded-none border-0 border-b py-0 shadow-none ring-0 xl:col-span-4 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:border-r xl:border-b-0">
+              <CardContent className="h-full p-5 md:p-6">
+                <SectionLabel icon={SunMedium}>Your daily brief</SectionLabel>
 
-                  <p>
-                    {calendar.error
-                      ? "Your Google Calendar summary is unavailable until the connection is restored."
-                      : todayMeetings.length > 0
-                        ? `You have ${todayMeetings.length} meeting${
-                            todayMeetings.length === 1 ? "" : "s"
-                          } today. ${
-                            nextMeeting
-                              ? `Your next event is “${
-                                  nextMeeting.title
-                                }” at ${formatMeetingTime(
-                                  nextMeeting.start,
-                                  nextMeeting.allDay,
-                                )}.`
-                              : ""
-                          }`
-                        : "Your calendar is clear today, leaving you an open runway for focused work."}
-                  </p>
+                {isLoading ? (
+                  <BriefSkeleton />
+                ) : (
+                  <div className="text-muted-foreground mt-5 max-w-[72ch] space-y-2 text-sm leading-6">
+                    <p>
+                      {gmail.error
+                        ? "Your Gmail summary is unavailable until the Corsair Gmail connection is restored in Settings."
+                        : gmail.data?.unread
+                          ? `Your inbox has ${gmail.data.unread} unread message${
+                              gmail.data.unread === 1 ? "" : "s"
+                            }. ${
+                              priorityThreads.length > 0
+                                ? `${priorityThreads.length} of the most recent conversations ${
+                                    priorityThreads.length === 1 ? "is" : "are"
+                                  } marked high priority.`
+                                : "None of the latest conversations has a strong urgency signal."
+                            }`
+                          : "Your inbox is clear with no unread messages waiting for review."}
+                    </p>
+
+                    <p>
+                      {inbox.error
+                        ? "Recent conversation details could not be loaded for this brief."
+                        : threads.length > 0
+                          ? `Recent mail includes “${
+                              threads[0]?.subject ?? "No subject"
+                            }”${
+                              threads[1] ? ` and “${threads[1].subject}”` : ""
+                            }.`
+                          : "There are no recent inbox conversations to summarize."}
+                    </p>
+
+                    <p>
+                      {calendar.error
+                        ? "Your Google Calendar summary is unavailable until the connection is restored."
+                        : todayMeetings.length > 0
+                          ? `You have ${todayMeetings.length} meeting${
+                              todayMeetings.length === 1 ? "" : "s"
+                            } today. ${
+                              nextMeeting
+                                ? `Your next event is “${
+                                    nextMeeting.title
+                                  }” at ${formatMeetingTime(
+                                    nextMeeting.start,
+                                    nextMeeting.allDay,
+                                  )}.`
+                                : ""
+                            }`
+                          : "Your calendar is clear today, leaving you an open runway for focused work."}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <QuickActions
+              onComposeEmail={() => openQuickAction("email")}
+              onCreateEvent={() => openQuickAction("event")}
+              onOpenUnreadMail={openUnreadMail}
+              onOpenSettings={() => router.push("/settings")}
+            />
+
+            <Card className="rounded-none border-0 border-b py-0 shadow-none ring-0 xl:col-span-3 xl:col-start-5 xl:row-span-2 xl:row-start-2 xl:border-r xl:border-b-0">
+              <CardContent className="flex h-full flex-col p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <SectionLabel icon={CalendarDays}>
+                    Today&apos;s schedule
+                  </SectionLabel>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={openCalendar}
+                  >
+                    Full calendar
+                    <ArrowRight className="size-4" />
+                  </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
 
-          <Card className="rounded-none py-0 xl:col-span-4">
-            <CardContent className="flex h-full min-h-[280px] flex-col p-6">
-              <div className="flex items-center justify-between gap-3">
-                <SectionLabel icon={CalendarDays}>
-                  Today&apos;s schedule
-                </SectionLabel>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={openCalendar}
-                >
-                  Full calendar
-                  <ArrowRight className="size-4" />
-                </Button>
-              </div>
-
-              {calendar.isLoading || !now ? (
-                <div className="mt-5 space-y-3">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                </div>
-              ) : calendar.error ? (
-                <EmptyBlock>
-                  Calendar is unavailable. Check Settings.
-                </EmptyBlock>
-              ) : todayMeetings.length === 0 ? (
-                <EmptyBlock>No meetings today — a clear runway.</EmptyBlock>
-              ) : (
-                <div className="mt-5 space-y-2">
-                  {todayMeetings.slice(0, 4).map((event) => (
-                    <div
-                      key={event.id}
-                      className="bg-muted/35 flex items-center gap-3 rounded-xl border p-3"
-                    >
-                      <span className="bg-primary/15 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
-                        <CalendarDays className="size-4" />
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {event.title}
+                {calendar.isLoading || !now ? (
+                  <div className="mt-5 space-y-3">
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                ) : calendar.error ? (
+                  <EmptyBlock>
+                    Calendar is unavailable. Check Settings.
+                  </EmptyBlock>
+                ) : todayMeetings.length === 0 ? (
+                  <EmptyBlock>No meetings today — a clear runway.</EmptyBlock>
+                ) : (
+                  <div className="mt-5 space-y-2">
+                    {todayMeetings.slice(0, 4).map((event) => (
+                      <div
+                        key={event.id}
+                        className="bg-muted/35 flex items-center gap-3 rounded-xl border p-3"
+                      >
+                        <span className="bg-primary/15 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
+                          <CalendarDays className="size-4" />
                         </span>
 
-                        <span className="text-muted-foreground mt-0.5 block truncate text-xs">
-                          {formatMeetingTime(event.start, event.allDay)}
-                          {event.location ? ` · ${event.location}` : ""}
-                        </span>
-                      </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">
+                            {event.title}
+                          </span>
 
-                      <EventActions event={event} compact />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-none py-0 xl:col-span-4">
-            <CardContent className="flex h-full min-h-[230px] flex-col p-6">
-              <SectionLabel>Quick actions</SectionLabel>
-
-              <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <ActionButton
-                  icon={SquarePen}
-                  label="Compose email"
-                  onClick={() => openQuickAction("email")}
-                />
-
-                <ActionButton
-                  icon={CalendarPlus}
-                  label="New event"
-                  onClick={() => openQuickAction("event")}
-                />
-
-                <ActionButton
-                  icon={Inbox}
-                  label="Unread mail"
-                  onClick={openUnreadMail}
-                />
-
-                <ActionButton
-                  icon={Settings}
-                  label="Settings"
-                  onClick={() => router.push("/settings")}
-                />
-              </div>
-
-              <p className="text-muted-foreground mt-auto pt-5 text-xs leading-5">
-                {generatedTime
-                  ? `Brief refreshed at ${generatedTime}. Data is loaded from your connected Corsair workspace.`
-                  : "Preparing your live Corsair brief…"}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-none py-0 xl:col-span-8">
-            <CardContent className="h-full p-6 md:p-8">
-              <SectionLabel icon={CheckSquare2}>
-                What needs you today
-              </SectionLabel>
-
-              {isLoading ? (
-                <div className="mt-6 space-y-3">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                </div>
-              ) : priorityThreads.length > 0 || todayMeetings.length > 0 ? (
-                <div className="mt-5 divide-y">
-                  {priorityThreads.slice(0, 3).map((thread) => (
-                    <button
-                      key={thread.id}
-                      type="button"
-                      className="group hover:bg-muted/50 flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors"
-                      onClick={() => openThread(thread.id)}
-                    >
-                      <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
-                        <MailWarning className="size-4" />
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {thread.subject}
+                          <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                            {formatMeetingTime(event.start, event.allDay)}
+                            {event.location ? ` · ${event.location}` : ""}
+                          </span>
                         </span>
 
-                        <span className="text-muted-foreground mt-0.5 block truncate text-xs">
-                          {thread.senderName ?? thread.senderEmail}
-                        </span>
-                      </span>
+                        <EventActions event={event} compact />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                      <ArrowRight className="text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5" />
-                    </button>
-                  ))}
-
-                  {todayMeetings.slice(0, 1).map((event) => (
-                    <div
-                      key={event.id}
-                      className="flex items-center gap-3 px-2 py-3"
-                    >
-                      <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
-                        <Clock3 className="size-4" />
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {event.title}
-                        </span>
-
-                        <span className="text-muted-foreground mt-0.5 block text-xs">
-                          {formatMeetingTime(event.start, event.allDay)}
-                        </span>
-                      </span>
-
-                      <EventActions event={event} compact />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground mt-6 text-sm leading-6">
-                  Nothing pressing — your inbox and calendar leave room for
-                  focused work.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            <QueuedAgentActions
+              compact
+              className="xl:col-span-3 xl:col-start-8 xl:row-span-3 xl:row-start-1"
+            />
+          </div>
         </section>
       </div>
     </div>
+  );
+}
+
+type InboxThread = RouterOutputs["gmail"]["inbox"][number];
+type CalendarEvent = RouterOutputs["calendar"]["upcoming"][number];
+
+function NeedsAttention({
+  isLoading,
+  priorityThreads,
+  todayMeetings,
+  onOpenThread,
+}: {
+  isLoading: boolean;
+  priorityThreads: InboxThread[];
+  todayMeetings: CalendarEvent[];
+  onOpenThread: (threadId: string) => void;
+}) {
+  return (
+    <Card className="rounded-none border-0 border-b py-0 shadow-none ring-0 xl:col-span-3 xl:col-start-5 xl:row-start-1 xl:border-r">
+      <CardContent className="h-full p-4 sm:p-5">
+        <SectionLabel icon={CheckSquare2}>What needs you today</SectionLabel>
+
+        {isLoading ? (
+          <div className="mt-4 space-y-2">
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : priorityThreads.length > 0 || todayMeetings.length > 0 ? (
+          <div className="mt-3 divide-y">
+            {priorityThreads.slice(0, 1).map((thread) => (
+              <button
+                key={thread.id}
+                type="button"
+                className="group hover:bg-muted/50 flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors"
+                onClick={() => onOpenThread(thread.id)}
+              >
+                <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+                  <MailWarning className="size-4" />
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {thread.subject}
+                  </span>
+
+                  <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                    {thread.senderName ?? thread.senderEmail}
+                  </span>
+                </span>
+
+                <ArrowRight className="text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            ))}
+
+            {todayMeetings.slice(0, 1).map((event) => (
+              <div
+                key={event.id}
+                className="flex items-center gap-3 px-2 py-2.5"
+              >
+                <span className="bg-primary/15 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+                  <Clock3 className="size-4" />
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {event.title}
+                  </span>
+
+                  <span className="text-muted-foreground mt-0.5 block text-xs">
+                    {formatMeetingTime(event.start, event.allDay)}
+                  </span>
+                </span>
+
+                <EventActions event={event} compact />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-muted-foreground mt-4 text-sm leading-5">
+            Nothing pressing — your inbox and calendar leave room for focused
+            work.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function QuickActions({
+  onComposeEmail,
+  onCreateEvent,
+  onOpenUnreadMail,
+  onOpenSettings,
+}: {
+  onComposeEmail: () => void;
+  onCreateEvent: () => void;
+  onOpenUnreadMail: () => void;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <Card className="rounded-none border-0 border-b py-0 shadow-none ring-0 xl:col-span-4 xl:col-start-1 xl:row-start-3 xl:border-t xl:border-r xl:border-b-0">
+      <CardContent className="flex h-full items-center justify-between gap-4 p-4 sm:p-5">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Quick actions</p>
+          <p className="text-muted-foreground mt-1 truncate text-xs">
+            Compose, schedule, search, or configure.
+          </p>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            id="focus-quick-actions-trigger"
+            render={<Button type="button" variant="outline" size="sm" />}
+          >
+            Choose action
+            <ChevronDown className="text-muted-foreground size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56">
+            <DropdownMenuItem onClick={onComposeEmail}>
+              <SquarePen />
+              Compose email
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreateEvent}>
+              <CalendarPlus />
+              Create calendar event
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenUnreadMail}>
+              <Inbox />
+              Open unread mail
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenSettings}>
+              <Settings />
+              Open settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -544,26 +598,27 @@ function MetricCard({
   accent = false,
 }: MetricCardProps) {
   return (
-    <div className="border-b last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
-      <div className="flex min-h-40 items-start justify-between gap-5 p-5 md:p-6">
+    <div className="relative min-h-36 border-b p-5 md:border-r md:border-b-0 md:p-6 md:last:border-r-0">
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
+          <p className="text-sm font-medium">{title}</p>
           {loading ? (
-            <Skeleton className="h-10 w-20" />
+            <Skeleton className="mt-5 h-10 w-20" />
           ) : (
-            <p className="mt-2 text-4xl font-semibold tracking-tight">
+            <p className="mt-5 text-4xl font-semibold tracking-[-0.03em]">
               {error ? "—" : (value ?? 0)}
             </p>
           )}
 
-          <p className="text-muted-foreground mt-1.5 line-clamp-2 text-xs leading-5">
+          <p className="text-muted-foreground mt-2 line-clamp-2 max-w-64 text-xs leading-5">
             {error ? "Connection unavailable" : description}
           </p>
         </div>
 
-        <div className="flex flex-col items-center">
+        <div>
           <span
             className={cn(
-              "flex size-11 shrink-0 flex-col items-center justify-center rounded-xl",
+              "flex size-10 shrink-0 items-center justify-center rounded-xl",
               accent
                 ? "bg-primary text-primary-foreground"
                 : "bg-primary/15 text-primary",
@@ -571,7 +626,6 @@ function MetricCard({
           >
             <Icon className="size-5" />
           </span>
-          <p className="mt-2 text-sm font-semibold">{title}</p>
         </div>
       </div>
     </div>
@@ -586,8 +640,8 @@ function SectionLabel({
   children: ReactNode;
 }) {
   return (
-    <div className="text-primary flex items-center gap-2 text-xs font-semibold tracking-[0.14em] uppercase">
-      {Icon ? <Icon className="size-4" /> : null}
+    <div className="text-foreground flex items-center gap-2 text-sm font-semibold tracking-[-0.01em]">
+      {Icon ? <Icon className="text-primary size-4" /> : null}
       <span>{children}</span>
     </div>
   );
@@ -606,30 +660,8 @@ function BriefSkeleton() {
 
 function EmptyBlock({ children }: { children: ReactNode }) {
   return (
-    <div className="text-muted-foreground bg-muted border-border mt-5 flex min-h-28 flex-1 items-center justify-center rounded-xl border p-5 text-center text-sm">
+    <div className="text-muted-foreground bg-muted/40 border-border/70 mt-5 flex min-h-28 flex-1 items-center justify-center rounded-xl border border-dashed p-5 text-center text-sm">
       {children}
     </div>
-  );
-}
-
-function ActionButton({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: TablerIcon;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      className="h-auto min-h-12 justify-start gap-2 px-3 py-2 text-left whitespace-normal"
-      onClick={onClick}
-    >
-      <Icon className="text-primary size-4 shrink-0" />
-      <span>{label}</span>
-    </Button>
   );
 }

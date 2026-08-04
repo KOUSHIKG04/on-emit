@@ -171,7 +171,7 @@ export function FeaturesSection() {
         <p className="text-xs font-semibold tracking-[0.18em] text-amber-300 uppercase">
           Designed for actual work
         </p>
-        <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl leading-[1.08] font-semibold tracking-[-0.04em] text-balance">
+        <h2 className="mt-4 text-2xl leading-[1.08] font-semibold tracking-[-0.04em] text-balance sm:text-3xl lg:text-4xl">
           Less inbox management. More forward motion.
         </h2>
         <p className="mt-5 max-w-2xl text-base leading-7 text-white/50">

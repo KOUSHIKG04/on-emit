@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { corsair, getTenantCorsair } from "@/server/corsair";
+import { getCorsairConnectionStatus, getTenantCorsair } from "@/server/corsair";
 
 const attendeeEmail = z.email().trim().max(320);
 
@@ -112,9 +112,7 @@ async function ensureCalendarConnected(
   tenantId: string,
   message = "Connect Google Calendar before performing this action.",
 ) {
-  const connectionStatus = await corsair.manage.connectionStatus.get({
-    tenantId,
-  });
+  const connectionStatus = await getCorsairConnectionStatus(tenantId);
 
   if (connectionStatus.googlecalendar !== "connected") {
     throw new TRPCError({

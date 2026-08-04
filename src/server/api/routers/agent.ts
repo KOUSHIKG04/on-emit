@@ -8,8 +8,10 @@ import {
   ToolCallError,
   tool,
   type AgentInputItem,
+  type FunctionTool,
 } from "@openai/agents";
 import { OpenAIAgentsProvider } from "@corsair-dev/mcp";
+import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -17,6 +19,7 @@ import { z } from "zod";
 import { env } from "@/env";
 import {
   DEFAULT_AI_PROVIDER,
+  GEMINI_AGENT_FALLBACK_MODELS,
   getAiProviderLabel,
   getDefaultAiModel,
   isAiProvider,
@@ -55,7 +58,7 @@ const chatInput = z
     path: ["message"],
   });
 
-const agentEmailAddress = z.string().trim().email().max(320);
+const agentEmailAddress = z.email().trim().max(320);
 const agentEmailMessageSchema = z.object({
   to: z.array(agentEmailAddress).min(1).max(50),
   cc: z.array(agentEmailAddress).max(50).optional(),
@@ -91,6 +94,68 @@ const agentCalendarEventSchema = z.object({
       message: "Include Z or an explicit UTC offset in the end time.",
     }),
 });
+const agentCalendarRangeSchema = z
+  .object({
+    timeMin: z.iso.datetime(),
+    timeMax: z.iso.datetime(),
+  })
+  .superRefine((value, context) => {
+    const start = new Date(value.timeMin).getTime();
+    const end = new Date(value.timeMax).getTime();
+
+    if (end <= start || end - start > 93 * 24 * 60 * 60 * 1_000) {
+      context.addIssue({
+        code: "custom",
+        path: ["timeMax"],
+        message: "Calendar range must be after its start and within 93 days.",
+      });
+    }
+  });
+const agentCalendarUpdateSchema = z
+  .object({
+    eventId: z.string().trim().min(1).max(1_000),
+    title: z.string().trim().min(1).max(500).optional(),
+    description: z.string().max(20_000).optional(),
+    location: z.string().trim().max(1_000).optional(),
+    startsAt: z.iso.datetime().optional(),
+    endsAt: z.iso.datetime().optional(),
+    addAttendees: z.array(agentEmailAddress).max(100).optional(),
+    removeAttendees: z.array(agentEmailAddress).max(100).optional(),
+  })
+  .superRefine((value, context) => {
+    if (Boolean(value.startsAt) !== Boolean(value.endsAt)) {
+      context.addIssue({
+        code: "custom",
+        path: [value.startsAt ? "endsAt" : "startsAt"],
+        message: "Provide both the new start and end time.",
+      });
+    }
+
+    if (
+      value.startsAt &&
+      value.endsAt &&
+      new Date(value.endsAt).getTime() <= new Date(value.startsAt).getTime()
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["endsAt"],
+        message: "Event end must be after its start.",
+      });
+    }
+  });
+const agentGmailThreadActionSchema = z.object({
+  threadId: z.string().trim().min(1).max(1_000),
+  action: z.enum([
+    "archive",
+    "unarchive",
+    "mark_read",
+    "mark_unread",
+    "star",
+    "unstar",
+    "trash",
+    "untrash",
+  ]),
+});
 
 process.env.OPENAI_AGENTS_DISABLE_TRACING = "1";
 setTracingDisabled(true);
@@ -98,7 +163,7 @@ setTracingDisabled(true);
 const originalFetch = globalThis.fetch;
 const GEMINI_MIN_REQUEST_INTERVAL_MS = 12_500;
 const GEMINI_SIGNATURE_TTL_MS = 5 * 60_000;
-let nextGeminiRequestAt = 0;
+const nextGeminiRequestAtByKey = new Map<string, number>();
 const geminiThoughtSignatures = new Map<
   string,
   { signature: string; expiresAt: number }
@@ -133,13 +198,40 @@ function getGeminiThoughtSignature(callId: string | undefined) {
   return entry.signature;
 }
 
-async function waitForGeminiRequestSlot() {
+function getAbortReason(signal: AbortSignal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException("The operation was aborted.", "AbortError");
+}
+
+async function waitForGeminiRequestSlot(apiKey: string, signal?: AbortSignal) {
+  if (signal?.aborted) throw getAbortReason(signal);
+
+  const throttleKey = createHash("sha256").update(apiKey).digest("base64url");
   const now = Date.now();
-  const scheduledAt = Math.max(now, nextGeminiRequestAt);
-  nextGeminiRequestAt = scheduledAt + GEMINI_MIN_REQUEST_INTERVAL_MS;
+  const scheduledAt = Math.max(
+    now,
+    nextGeminiRequestAtByKey.get(throttleKey) ?? 0,
+  );
+  nextGeminiRequestAtByKey.set(
+    throttleKey,
+    scheduledAt + GEMINI_MIN_REQUEST_INTERVAL_MS,
+  );
 
   if (scheduledAt > now) {
-    await new Promise((resolve) => setTimeout(resolve, scheduledAt - now));
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timeout);
+        reject(getAbortReason(signal!));
+      };
+      const timeout = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, scheduledAt - now);
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+    });
   }
 }
 
@@ -199,8 +291,7 @@ async function geminiNativeFetch(
   const headersObj = new Headers(init.headers);
   const apiKey =
     headersObj.get("x-goog-api-key") ??
-    headersObj.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-    env.GEMINI_API_KEY;
+    headersObj.get("authorization")?.replace(/^Bearer\s+/i, "");
 
   if (!apiKey) {
     return new Response(
@@ -366,7 +457,7 @@ async function geminiNativeFetch(
     ...(tools ? { tools } : {}),
   };
 
-  await waitForGeminiRequestSlot();
+  await waitForGeminiRequestSlot(apiKey, init.signal ?? undefined);
 
   const resp = await originalFetch(geminiUrl, {
     method: "POST",
@@ -375,6 +466,7 @@ async function geminiNativeFetch(
       "x-goog-api-key": apiKey,
     },
     body: JSON.stringify(nativeBody),
+    signal: init.signal,
   });
 
   if (!resp.ok) {
@@ -466,35 +558,6 @@ async function geminiNativeFetch(
   });
 }
 
-if (
-  !(globalThis as unknown as { __gemini_fetch_patched?: boolean })
-    .__gemini_fetch_patched
-) {
-  (
-    globalThis as unknown as { __gemini_fetch_patched?: boolean }
-  ).__gemini_fetch_patched = true;
-
-  globalThis.fetch = function (
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ): Promise<Response> {
-    const urlStr =
-      typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input && typeof input === "object" && "url" in input
-            ? input.url
-            : "";
-
-    if (urlStr.includes("generativelanguage.googleapis.com/v1beta/openai")) {
-      return geminiNativeFetch(input, init);
-    }
-
-    return originalFetch(input, init);
-  };
-}
-
 const AGENT_TIMEOUT_MS = 150_000;
 const PROVIDER_BASE_URLS: Record<AiProvider, string> = {
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -505,15 +568,14 @@ const PROVIDER_BASE_URLS: Record<AiProvider, string> = {
 const QUEUE_ACTION_MARKER = "[QUEUE_ACTION]";
 const WRITE_TOOL_NAME_PATTERN =
   /(send|draft|create|update|delete|modify|archive|trash|untrash|reply|forward|move|mark|schedule|cancel)/i;
-const GEMINI_FALLBACK_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
-] as const;
 type ReconnectPlugin = "gmail" | "googlecalendar";
+
+class ReconnectRequiredError extends Error {
+  constructor(readonly reconnectPlugin: ReconnectPlugin) {
+    super("Google connection must be reauthorized.");
+    this.name = "ReconnectRequiredError";
+  }
+}
 
 function getReconnectPlugin(message: string): ReconnectPlugin | null {
   if (
@@ -584,12 +646,12 @@ function formatCalendarApprovalPreview(
 ) {
   if (!/create calendar event/i.test(reply)) return reply;
 
-  const attendees = reply
-    .match(/\*{0,2}Attendees?\*{0,2}\s*:\s*([^\n]+)/i)?.[1]
+  const attendees = /\*{0,2}Attendees?\*{0,2}\s*:\s*([^\n]+)/i
+    .exec(reply)?.[1]
     ?.replace(/[*_`]/g, "")
     .trim();
-  const startValue = reply
-    .match(/\*{0,2}Start Time\*{0,2}\s*:\s*([^\s\n]+)/i)?.[1]
+  const startValue = /\*{0,2}Start Time\*{0,2}\s*:\s*([^\s\n]+)/i
+    .exec(reply)?.[1]
     ?.trim();
 
   if (!startValue) return reply;
@@ -676,20 +738,23 @@ function isRateLimitError(error: unknown) {
   );
 }
 
-function getCollectedToolOutput(error: MaxTurnsExceededError) {
-  const outputs =
-    error.state?._generatedItems
-      .filter((item) => item.type === "tool_call_output_item")
-      .map((item) => {
-        if (typeof item.output === "string") return item.output;
+function getToolCallOutputs(error: MaxTurnsExceededError) {
+  const generatedItems = error.state?.toJSON().generatedItems ?? [];
 
-        try {
-          return JSON.stringify(item.output);
-        } catch {
-          return String(item.output);
-        }
-      })
-      .filter(Boolean) ?? [];
+  return generatedItems.flatMap((item) => {
+    if (item.type !== "tool_call_output_item") return [];
+    if (typeof item.output === "string") return [item.output];
+
+    try {
+      return [JSON.stringify(item.output) ?? ""];
+    } catch {
+      return [String(item.output)];
+    }
+  });
+}
+
+function getCollectedToolOutput(error: MaxTurnsExceededError) {
+  const outputs = getToolCallOutputs(error).filter(Boolean);
 
   if (outputs.length === 0) return null;
 
@@ -708,6 +773,7 @@ function getCollectedToolOutput(error: MaxTurnsExceededError) {
 
 const GMAIL_SEND_RESULT_PREFIX = "GMAIL_SEND_RESULT:";
 const CALENDAR_CREATE_RESULT_PREFIX = "CALENDAR_CREATE_RESULT:";
+const AGENT_WRITE_RESULT_PREFIX = "AGENT_WRITE_RESULT:";
 
 function normalizeAgentEmailBody(body: string) {
   return body
@@ -719,43 +785,34 @@ function normalizeAgentEmailBody(body: string) {
 }
 
 function getConfirmedWriteResult(error: MaxTurnsExceededError) {
-  const outputs =
-    error.state?._generatedItems
-    .filter((item) => item.type === "tool_call_output_item")
-    .map((item) => {
-      if (typeof item.output === "string") return item.output;
-
-      try {
-        return JSON.stringify(item.output) ?? "";
-      } catch {
-        return "";
-      }
-    }) ?? [];
+  const outputs = getToolCallOutputs(error);
   const output = outputs.find(
     (item) =>
       item.startsWith(GMAIL_SEND_RESULT_PREFIX) ||
-      item.startsWith(CALENDAR_CREATE_RESULT_PREFIX),
+      item.startsWith(CALENDAR_CREATE_RESULT_PREFIX) ||
+      item.startsWith(AGENT_WRITE_RESULT_PREFIX),
   );
 
   if (!output) return null;
 
   try {
-    const isCalendarResult = output.startsWith(
-      CALENDAR_CREATE_RESULT_PREFIX,
-    );
-    const prefix = isCalendarResult
-      ? CALENDAR_CREATE_RESULT_PREFIX
-      : GMAIL_SEND_RESULT_PREFIX;
-    const result = JSON.parse(
-      output.slice(prefix.length),
-    ) as {
+    const isCalendarResult = output.startsWith(CALENDAR_CREATE_RESULT_PREFIX);
+    const isGenericResult = output.startsWith(AGENT_WRITE_RESULT_PREFIX);
+    const prefix = isGenericResult
+      ? AGENT_WRITE_RESULT_PREFIX
+      : isCalendarResult
+        ? CALENDAR_CREATE_RESULT_PREFIX
+        : GMAIL_SEND_RESULT_PREFIX;
+    const result = JSON.parse(output.slice(prefix.length)) as {
       success: boolean;
       completed?: number;
       sent?: number;
+      message?: string;
       error?: string;
     };
 
     if (result.success) {
+      if (result.message) return result.message;
       const completed = result.completed ?? result.sent ?? 1;
 
       if (isCalendarResult) {
@@ -886,7 +943,11 @@ export const agentRouter = createTRPCRouter({
 
     try {
       let gmailSendAttempt: Promise<string> | undefined;
+      let gmailDraftAttempt: Promise<string> | undefined;
+      let gmailThreadActionAttempt: Promise<string> | undefined;
       let calendarCreateAttempt: Promise<string> | undefined;
+      let calendarUpdateAttempt: Promise<string> | undefined;
+      let calendarCancelAttempt: Promise<string> | undefined;
       let confirmedWriteFailed = false;
       let failedReconnectPlugin: ReconnectPlugin | null = null;
       const explicitUserYear = getLatestExplicitUserYear(
@@ -894,6 +955,220 @@ export const agentRouter = createTRPCRouter({
         input.history,
       );
       const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
+      const listCalendarEventsTool = tool({
+        name: "list_calendar_events",
+        description:
+          "Read events from the user's primary Google Calendar for a requested date range. Use this immediately whenever the user asks what is on their calendar, schedule, agenda, or availability. Resolve relative dates in the user's timezone and pass RFC 3339 boundaries. This tool is read-only and requires no approval.",
+        parameters: agentCalendarRangeSchema,
+        execute: async ({ timeMin, timeMax }) => {
+          try {
+            const connectionStatus = await corsair.manage.connectionStatus.get({
+              tenantId: ctx.corsairTenantId,
+            });
+
+            if (connectionStatus.googlecalendar !== "connected") {
+              failedReconnectPlugin = "googlecalendar";
+              return reconnectReply("googlecalendar");
+            }
+
+            const response =
+              await tenantCorsair.googlecalendar.api.events.getMany({
+                calendarId: "primary",
+                timeMin,
+                timeMax,
+                singleEvents: true,
+                orderBy: "startTime",
+                maxResults: 250,
+                showDeleted: false,
+              });
+
+            const events = (response.items ?? []).map((event) => ({
+              id: event.id ?? null,
+              title: event.summary ?? "(Untitled event)",
+              start: event.start?.dateTime ?? event.start?.date ?? null,
+              end: event.end?.dateTime ?? event.end?.date ?? null,
+              allDay: Boolean(event.start?.date && !event.start?.dateTime),
+              location: event.location ?? null,
+              status: event.status ?? null,
+              attendees: (event.attendees ?? [])
+                .filter((attendee) => Boolean(attendee.email))
+                .map((attendee) => ({
+                  email: attendee.email,
+                  responseStatus: attendee.responseStatus ?? null,
+                })),
+            }));
+
+            return JSON.stringify({ timeMin, timeMax, events });
+          } catch (error) {
+            console.error("Agent Google Calendar list failed:", error);
+            const errorText = getErrorText(error);
+            const calendarAuthExpired =
+              /invalid_grant|access token (?:has )?expired|refresh token|expired or revoked/i.test(
+                errorText,
+              );
+
+            if (calendarAuthExpired) {
+              failedReconnectPlugin = "googlecalendar";
+              return reconnectReply("googlecalendar");
+            }
+
+            return "Google Calendar could not load the requested date range.";
+          }
+        },
+      });
+      const searchGmailThreadsTool = tool({
+        name: "search_gmail_threads",
+        description:
+          "Search the user's Gmail with Gmail search operators and return detailed thread summaries. Use this for inbox summaries and to identify thread IDs before approved archive, read-state, star, or trash actions. This tool is read-only and requires no approval.",
+        parameters: z.object({
+          query: z.string().trim().min(1).max(2_000),
+          maxResults: z.number().int().min(1).max(50).default(20),
+        }),
+        execute: async ({ query, maxResults }) => {
+          try {
+            const connectionStatus = await corsair.manage.connectionStatus.get({
+              tenantId: ctx.corsairTenantId,
+            });
+
+            if (connectionStatus.gmail !== "connected") {
+              failedReconnectPlugin = "gmail";
+              return reconnectReply("gmail");
+            }
+
+            const listed = await tenantCorsair.gmail.api.threads.list({
+              userId: "me",
+              q: query,
+              maxResults,
+              includeSpamTrash: false,
+            });
+            const threadIds = (listed.threads ?? [])
+              .map((thread) => thread.id)
+              .filter((id): id is string => Boolean(id));
+            const detailed = await Promise.all(
+              threadIds.map((id) =>
+                tenantCorsair.gmail.api.threads.get({
+                  userId: "me",
+                  id,
+                  format: "full",
+                }),
+              ),
+            );
+            const threads = detailed.map((thread) => {
+              const messages = thread.messages ?? [];
+              const latest = messages.at(-1);
+              const headers = latest?.payload?.headers ?? [];
+              const header = (name: string) =>
+                headers.find(
+                  (item) => item.name?.toLowerCase() === name.toLowerCase(),
+                )?.value ?? null;
+              const internalDate = latest?.internalDate;
+
+              return {
+                threadId: thread.id ?? null,
+                messageId: latest?.id ?? null,
+                subject: header("Subject") ?? "(No subject)",
+                from: header("From"),
+                to: header("To"),
+                date: header("Date"),
+                receivedAt: internalDate
+                  ? new Date(internalDate).toISOString()
+                  : null,
+                snippet: latest?.snippet ?? thread.snippet ?? "",
+                unread: messages.some((message) =>
+                  message.labelIds?.includes("UNREAD"),
+                ),
+                starred: messages.some((message) =>
+                  message.labelIds?.includes("STARRED"),
+                ),
+                messageCount: messages.length,
+              };
+            });
+
+            return JSON.stringify({ query, threads });
+          } catch (error) {
+            console.error("Agent Gmail search failed:", error);
+            const errorText = getErrorText(error);
+            if (
+              /invalid_grant|access token (?:has )?expired|refresh token|expired or revoked/i.test(
+                errorText,
+              )
+            ) {
+              failedReconnectPlugin = "gmail";
+              return reconnectReply("gmail");
+            }
+
+            return "Gmail could not complete that search.";
+          }
+        },
+      });
+      const listGmailDraftsTool = tool({
+        name: "list_gmail_drafts",
+        description:
+          "List the user's Gmail drafts with their real draft IDs and message summaries. Use this before an approved draft update or deletion when the draft ID is not already known. This tool is read-only and requires no approval.",
+        parameters: z.object({
+          maxResults: z.number().int().min(1).max(50).default(20),
+        }),
+        execute: async ({ maxResults }) => {
+          try {
+            const connectionStatus = await corsair.manage.connectionStatus.get({
+              tenantId: ctx.corsairTenantId,
+            });
+            if (connectionStatus.gmail !== "connected") {
+              failedReconnectPlugin = "gmail";
+              return reconnectReply("gmail");
+            }
+
+            const listed = await tenantCorsair.gmail.api.drafts.list({
+              userId: "me",
+              maxResults,
+            });
+            const draftIds = (listed.drafts ?? [])
+              .map((draft) => draft.id)
+              .filter((id): id is string => Boolean(id));
+            const detailed = await Promise.all(
+              draftIds.map((id) =>
+                tenantCorsair.gmail.api.drafts.get({
+                  userId: "me",
+                  id,
+                  format: "full",
+                }),
+              ),
+            );
+            const drafts = detailed.map((draft) => {
+              const headers = draft.message?.payload?.headers ?? [];
+              const header = (name: string) =>
+                headers.find(
+                  (item) => item.name?.toLowerCase() === name.toLowerCase(),
+                )?.value ?? null;
+
+              return {
+                draftId: draft.id ?? null,
+                messageId: draft.message?.id ?? null,
+                threadId: draft.message?.threadId ?? null,
+                to: header("To"),
+                cc: header("Cc"),
+                subject: header("Subject") ?? "(No subject)",
+                snippet: draft.message?.snippet ?? "",
+              };
+            });
+
+            return JSON.stringify({ drafts });
+          } catch (error) {
+            console.error("Agent Gmail draft list failed:", error);
+            const errorText = getErrorText(error);
+            if (
+              /invalid_grant|access token (?:has )?expired|refresh token|expired or revoked/i.test(
+                errorText,
+              )
+            ) {
+              failedReconnectPlugin = "gmail";
+              return reconnectReply("gmail");
+            }
+
+            return "Gmail could not load drafts.";
+          }
+        },
+      });
       const sendGmailTool = tool({
         name: "send_gmail_emails",
         description:
@@ -950,6 +1225,191 @@ export const agentRouter = createTRPCRouter({
           })();
 
           return gmailSendAttempt;
+        },
+      });
+      const manageGmailDraftsTool = tool({
+        name: "manage_gmail_drafts",
+        description:
+          "Create, update, or delete approved Gmail drafts. For create, omit draftId and provide the message. For update, provide draftId and the complete replacement message. For delete, provide only draftId. Pass all draft changes in one call and never retry.",
+        parameters: z.object({
+          changes: z
+            .array(
+              z.discriminatedUnion("operation", [
+                z.object({
+                  operation: z.literal("create"),
+                  message: agentEmailMessageSchema,
+                }),
+                z.object({
+                  operation: z.literal("update"),
+                  draftId: z.string().trim().min(1).max(1_000),
+                  message: agentEmailMessageSchema,
+                }),
+                z.object({
+                  operation: z.literal("delete"),
+                  draftId: z.string().trim().min(1).max(1_000),
+                }),
+              ]),
+            )
+            .min(1)
+            .max(20),
+        }),
+        execute: async ({ changes }) => {
+          if (gmailDraftAttempt) return gmailDraftAttempt;
+
+          gmailDraftAttempt = (async () => {
+            let completed = 0;
+
+            try {
+              for (const change of changes) {
+                if (change.operation === "delete") {
+                  await tenantCorsair.gmail.api.drafts.delete({
+                    userId: "me",
+                    id: change.draftId,
+                  });
+                } else {
+                  const raw = createRawEmail({
+                    ...change.message,
+                    body: normalizeAgentEmailBody(change.message.body),
+                    cc: change.message.cc ?? [],
+                  });
+
+                  if (change.operation === "create") {
+                    await tenantCorsair.gmail.api.drafts.create({
+                      userId: "me",
+                      draft: { message: { raw } },
+                    });
+                  } else {
+                    const existing = await tenantCorsair.gmail.api.drafts.get({
+                      userId: "me",
+                      id: change.draftId,
+                      format: "minimal",
+                    });
+                    await tenantCorsair.gmail.api.drafts.update({
+                      userId: "me",
+                      id: change.draftId,
+                      draft: {
+                        message: {
+                          raw,
+                          ...(existing.message?.threadId
+                            ? { threadId: existing.message.threadId }
+                            : {}),
+                        },
+                      },
+                    });
+                  }
+                }
+
+                completed += 1;
+              }
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: true,
+                completed,
+                message:
+                  completed === 1
+                    ? "Gmail draft updated successfully."
+                    : `${completed} Gmail draft changes completed successfully.`,
+              })}`;
+            } catch (error) {
+              confirmedWriteFailed = true;
+              console.error("Agent Gmail draft action failed:", error);
+              const reconnectPlugin = getReconnectPlugin(
+                `Gmail draft ${getErrorText(error)}`,
+              );
+              if (reconnectPlugin === "gmail") {
+                failedReconnectPlugin = "gmail";
+              }
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: false,
+                completed,
+                error:
+                  reconnectPlugin === "gmail"
+                    ? reconnectReply("gmail")
+                    : "Gmail could not complete the approved draft change. It was not retried.",
+              })}`;
+            }
+          })();
+
+          return gmailDraftAttempt;
+        },
+      });
+      const modifyGmailThreadsTool = tool({
+        name: "modify_gmail_threads",
+        description:
+          "Apply approved archive, unarchive, read, unread, star, unstar, trash, or untrash actions to Gmail thread IDs returned by search_gmail_threads. Pass all changes in one call and never retry.",
+        parameters: z.object({
+          changes: z.array(agentGmailThreadActionSchema).min(1).max(50),
+        }),
+        execute: async ({ changes }) => {
+          if (gmailThreadActionAttempt) return gmailThreadActionAttempt;
+
+          gmailThreadActionAttempt = (async () => {
+            let completed = 0;
+
+            try {
+              for (const change of changes) {
+                if (change.action === "trash") {
+                  await tenantCorsair.gmail.api.threads.trash({
+                    userId: "me",
+                    id: change.threadId,
+                  });
+                } else if (change.action === "untrash") {
+                  await tenantCorsair.gmail.api.threads.untrash({
+                    userId: "me",
+                    id: change.threadId,
+                  });
+                } else {
+                  await tenantCorsair.gmail.api.threads.modify({
+                    userId: "me",
+                    id: change.threadId,
+                    ...(change.action === "archive"
+                      ? { removeLabelIds: ["INBOX"] }
+                      : change.action === "unarchive"
+                        ? { addLabelIds: ["INBOX"] }
+                        : change.action === "mark_read"
+                          ? { removeLabelIds: ["UNREAD"] }
+                          : change.action === "mark_unread"
+                            ? { addLabelIds: ["UNREAD"] }
+                            : change.action === "star"
+                              ? { addLabelIds: ["STARRED"] }
+                              : { removeLabelIds: ["STARRED"] }),
+                  });
+                }
+
+                completed += 1;
+              }
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: true,
+                completed,
+                message:
+                  completed === 1
+                    ? "Gmail conversation updated successfully."
+                    : `${completed} Gmail conversations updated successfully.`,
+              })}`;
+            } catch (error) {
+              confirmedWriteFailed = true;
+              console.error("Agent Gmail thread action failed:", error);
+              const reconnectPlugin = getReconnectPlugin(
+                `Gmail thread ${getErrorText(error)}`,
+              );
+              if (reconnectPlugin === "gmail") {
+                failedReconnectPlugin = "gmail";
+              }
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: false,
+                completed,
+                error:
+                  reconnectPlugin === "gmail"
+                    ? reconnectReply("gmail")
+                    : "Gmail could not complete the approved conversation change. It was not retried.",
+              })}`;
+            }
+          })();
+
+          return gmailThreadActionAttempt;
         },
       });
       const createCalendarEventsTool = tool({
@@ -1087,17 +1547,174 @@ export const agentRouter = createTRPCRouter({
               return `${CALENDAR_CREATE_RESULT_PREFIX}${JSON.stringify({
                 success: false,
                 completed,
-                error:
-                  calendarAuthExpired
-                    ? reconnectReply("googlecalendar")
-                    : completed > 0
-                      ? `${completed} meeting${completed === 1 ? " was" : "s were"} created before Google Calendar rejected the next one. The remaining meetings were not retried.`
-                      : "Google Calendar rejected the approved meeting. It was not retried.",
+                error: calendarAuthExpired
+                  ? reconnectReply("googlecalendar")
+                  : completed > 0
+                    ? `${completed} meeting${completed === 1 ? " was" : "s were"} created before Google Calendar rejected the next one. The remaining meetings were not retried.`
+                    : "Google Calendar rejected the approved meeting. It was not retried.",
               })}`;
             }
           })();
 
           return calendarCreateAttempt;
+        },
+      });
+      const updateCalendarEventsTool = tool({
+        name: "update_calendar_events",
+        description:
+          "Update one or more approved Google Calendar events by event ID. Use IDs returned by list_calendar_events. Supports title, description, location, time changes, and adding or removing attendees. Attendee updates send Google Calendar notifications. Pass all updates in one call and never retry.",
+        parameters: z.object({
+          changes: z.array(agentCalendarUpdateSchema).min(1).max(20),
+        }),
+        execute: async ({ changes }) => {
+          if (calendarUpdateAttempt) return calendarUpdateAttempt;
+
+          calendarUpdateAttempt = (async () => {
+            let completed = 0;
+
+            try {
+              for (const change of changes) {
+                const existing =
+                  await tenantCorsair.googlecalendar.api.events.get({
+                    calendarId: "primary",
+                    id: change.eventId,
+                  });
+                const removedAttendees = new Set(
+                  (change.removeAttendees ?? []).map((email) =>
+                    email.toLowerCase(),
+                  ),
+                );
+                const attendees = new Map<string, string>();
+
+                for (const attendee of existing.attendees ?? []) {
+                  if (
+                    attendee.email &&
+                    !removedAttendees.has(attendee.email.toLowerCase())
+                  ) {
+                    attendees.set(attendee.email.toLowerCase(), attendee.email);
+                  }
+                }
+                for (const email of change.addAttendees ?? []) {
+                  attendees.set(email.toLowerCase(), email);
+                }
+
+                await tenantCorsair.googlecalendar.api.events.update({
+                  calendarId: "primary",
+                  id: change.eventId,
+                  event: {
+                    summary: change.title ?? existing.summary,
+                    description:
+                      change.description ?? existing.description ?? undefined,
+                    location: change.location ?? existing.location ?? undefined,
+                    start:
+                      change.startsAt && change.endsAt
+                        ? { dateTime: change.startsAt }
+                        : existing.start,
+                    end:
+                      change.startsAt && change.endsAt
+                        ? { dateTime: change.endsAt }
+                        : existing.end,
+                    attendees: [...attendees.values()].map((email) => ({
+                      email,
+                    })),
+                    guestsCanInviteOthers: true,
+                    guestsCanSeeOtherGuests: true,
+                  },
+                  sendUpdates: "all",
+                });
+                completed += 1;
+              }
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: true,
+                completed,
+                message:
+                  completed === 1
+                    ? "Calendar event updated successfully. Attendee notifications were sent."
+                    : `${completed} calendar events updated successfully. Attendee notifications were sent.`,
+              })}`;
+            } catch (error) {
+              confirmedWriteFailed = true;
+              console.error("Agent Google Calendar update failed:", error);
+              const errorText = getErrorText(error);
+              const authExpired =
+                /invalid_grant|access token (?:has )?expired|refresh token|expired or revoked/i.test(
+                  errorText,
+                );
+              if (authExpired) failedReconnectPlugin = "googlecalendar";
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: false,
+                completed,
+                error: authExpired
+                  ? reconnectReply("googlecalendar")
+                  : /not found|\b404\b/i.test(errorText)
+                    ? "That calendar event no longer exists. Refresh the calendar and try again."
+                    : "Google Calendar could not complete the approved update. It was not retried.",
+              })}`;
+            }
+          })();
+
+          return calendarUpdateAttempt;
+        },
+      });
+      const cancelCalendarEventsTool = tool({
+        name: "cancel_calendar_events",
+        description:
+          "Cancel one or more approved Google Calendar events by event ID. Use IDs returned by list_calendar_events. Cancellation notifications are sent to attendees. Pass all event IDs in one call and never retry.",
+        parameters: z.object({
+          eventIds: z.array(z.string().trim().min(1).max(1_000)).min(1).max(20),
+        }),
+        execute: async ({ eventIds }) => {
+          if (calendarCancelAttempt) return calendarCancelAttempt;
+
+          calendarCancelAttempt = (async () => {
+            let completed = 0;
+
+            try {
+              for (const eventId of eventIds) {
+                await tenantCorsair.googlecalendar.api.events.delete({
+                  calendarId: "primary",
+                  id: eventId,
+                  sendUpdates: "all",
+                });
+                completed += 1;
+              }
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: true,
+                completed,
+                message:
+                  completed === 1
+                    ? "Calendar event cancelled successfully. Attendees were notified."
+                    : `${completed} calendar events cancelled successfully. Attendees were notified.`,
+              })}`;
+            } catch (error) {
+              confirmedWriteFailed = true;
+              console.error(
+                "Agent Google Calendar cancellation failed:",
+                error,
+              );
+              const errorText = getErrorText(error);
+              const authExpired =
+                /invalid_grant|access token (?:has )?expired|refresh token|expired or revoked/i.test(
+                  errorText,
+                );
+              if (authExpired) failedReconnectPlugin = "googlecalendar";
+
+              return `${AGENT_WRITE_RESULT_PREFIX}${JSON.stringify({
+                success: false,
+                completed,
+                error: authExpired
+                  ? reconnectReply("googlecalendar")
+                  : /not found|\b404\b/i.test(errorText)
+                    ? "That calendar event no longer exists or was already cancelled. Refresh the calendar before trying again."
+                    : "Google Calendar could not complete the approved cancellation. It was not retried.",
+              })}`;
+            }
+          })();
+
+          return calendarCancelAttempt;
         },
       });
       const corsairTools = new OpenAIAgentsProvider().build({
@@ -1108,8 +1725,8 @@ export const agentRouter = createTRPCRouter({
       });
 
       const runScriptTool = corsairTools.find(
-        (item) => item.name === "run_script",
-      );
+        (item) => item.name === "run_script" && item.type === "function",
+      ) as FunctionTool | undefined;
 
       if (runScriptTool) {
         const invokeRunScript = runScriptTool.invoke.bind(runScriptTool);
@@ -1157,10 +1774,32 @@ export const agentRouter = createTRPCRouter({
       }
 
       const safeTools = input.confirmed
-        ? [sendGmailTool, createCalendarEventsTool, ...corsairTools]
-        : corsairTools.filter(
-            (item) => !WRITE_TOOL_NAME_PATTERN.test(item.name),
-          );
+        ? [
+            listCalendarEventsTool,
+            searchGmailThreadsTool,
+            listGmailDraftsTool,
+            sendGmailTool,
+            manageGmailDraftsTool,
+            modifyGmailThreadsTool,
+            createCalendarEventsTool,
+            updateCalendarEventsTool,
+            cancelCalendarEventsTool,
+            ...corsairTools.filter(
+              (item) =>
+                item.name !== "run_script" &&
+                !WRITE_TOOL_NAME_PATTERN.test(item.name),
+            ),
+          ]
+        : [
+            listCalendarEventsTool,
+            searchGmailThreadsTool,
+            listGmailDraftsTool,
+            ...corsairTools.filter(
+              (item) =>
+                item.name !== "run_script" &&
+                !WRITE_TOOL_NAME_PATTERN.test(item.name),
+            ),
+          ];
 
       const agentInstructions = `You manage Gmail and Google Calendar through Corsair for one authenticated tenant.
 Be concise and state exactly what you did. Never claim an action succeeded unless a tool result confirms it.
@@ -1168,11 +1807,14 @@ For approval previews, use one short natural-language sentence. Never show imple
 Treat explicit dates, years, times, attendees, and titles written by the user as authoritative. Never replace an explicit year with the current year or with a different year from an earlier assistant message.
 If a Google tool reports invalid_grant or an expired or revoked token, do not retry it. Clearly say which connection must be reconnected.
 Never expose stack traces, JavaScript exception names, or internal implementation details. If an earlier tool attempt fails but a later attempt succeeds and the request is completed, do not mention the recovered internal error.
-Never guess a Corsair JavaScript operation path. Before the first run_script call for a service, use list_operations for the exact gmail or googlecalendar plugin and use the returned path. If a guessed path fails, recover with the listed path without exposing the internal error.
-For inbox summaries, search in a batch and summarize the newest 20 matching messages unless the user requests another limit. Avoid fetching messages one at a time when search results already contain enough subject, sender, date, and snippet information.
-Do not call the same read tool repeatedly with equivalent arguments. After a successful search, list, or read result contains enough information to answer, stop using tools and answer the user.
+  Never tell the user which API, tool, operation path, ID, or parameters they should call. Use the dedicated tools yourself.
+  For inbox summaries and Gmail searches, call search_gmail_threads once and summarize the newest 20 matching messages unless the user requests another limit. Use Gmail search operators in its query. Do not fetch messages individually.
+  Do not call the same read tool repeatedly with equivalent arguments. After a successful search, list, or read result contains enough information to answer, stop using tools and answer the user.
+  When the user asks what is on their calendar, schedule, agenda, or availability, call list_calendar_events instead of explaining how to use Google Calendar or Corsair. For "this week", use Monday 00:00 through the following Monday 00:00 in ${input.timeZone}. If there are no events, clearly say the calendar is clear for that range.
 For an approved Gmail send, always use send_gmail_emails exactly once. Put all requested messages into that single call. Write the body as natural, specific plain text with real paragraph breaks, not visible backslash-n sequences. Preserve concrete context supplied by the user, avoid generic promotional or urgent language, and never invent a relationship with the recipient. Never use run_script for Gmail messages.send, never construct MIME or base64 data yourself, and never retry a failed write.
+For approved Gmail drafts, call list_gmail_drafts first if an existing draft ID is not already available, then use manage_gmail_drafts exactly once. For approved archive, read-state, star, or trash changes, first use search_gmail_threads if an ID is not already available, then call modify_gmail_threads exactly once. Never invent a Gmail thread or draft ID.
 For an approved new calendar meeting, always use create_calendar_events exactly once. Put all requested meetings into that single call. Never use run_script for googlecalendar events.create and never retry a failed write. Interpret relative dates and times in ${input.timeZone}, then supply RFC 3339 timestamps with an explicit UTC offset. Use relevant details from the conversation history. If the user supplies a date and start time but no end time or duration, default to 30 minutes and state that duration in the approval preview. Ask a concise clarification question only when the date or start time cannot be determined from the current request and history.
+For an approved calendar update or cancellation, first call list_calendar_events once when the event ID is not already available. Then call update_calendar_events or cancel_calendar_events exactly once. Never invent an event ID and never retry. Adding or removing attendees is a calendar update and must use update_calendar_events so Google sends attendee notifications.
 Current date and time: ${new Date().toISOString()}.
 ${
   input.confirmed
@@ -1212,7 +1854,7 @@ ${
         provider === "gemini" && !input.confirmed
           ? [
               model,
-              ...GEMINI_FALLBACK_MODELS.filter(
+              ...GEMINI_AGENT_FALLBACK_MODELS.filter(
                 (candidate) => candidate !== model,
               ),
             ]
@@ -1232,12 +1874,10 @@ ${
 
         try {
           const result = await runner.run(agent, agentInput, {
-            maxTurns: 4,
+            maxTurns: input.confirmed ? 6 : 4,
             signal: timeoutController.signal,
           });
-          rawReply = String(
-            result.finalOutput ?? "No response was produced.",
-          );
+          rawReply = String(result.finalOutput ?? "No response was produced.");
           break;
         } catch (error) {
           if (error instanceof MaxTurnsExceededError && input.confirmed) {
@@ -1301,9 +1941,11 @@ ${
                 }
               }
 
-              throw (
-                lastSynthesisError ??
-                new Error("No Gemini model could summarize the tool results.")
+              if (lastSynthesisError instanceof Error) {
+                throw lastSynthesisError;
+              }
+              throw new Error(
+                "No Gemini model could summarize the tool results.",
               );
             }
           }
@@ -1329,11 +1971,16 @@ ${
         throw new Error("No Gemini model completed the request.");
       }
 
+      const trimmedReply = rawReply.trimStart();
+      const hasQueueMarker = trimmedReply.startsWith(QUEUE_ACTION_MARKER);
+      const looksLikeWritePreview =
+        /^(?:I will|I'll)\s+(?:add|archive|cancel|compose|create|delete|draft|forward|invite|mark|modify|move|remove|reply|reschedule|save|schedule|send|trash|untrash|update)\b/i.test(
+          trimmedReply,
+        );
       const requiresApproval =
-        !input.confirmed &&
-        rawReply.trimStart().startsWith(QUEUE_ACTION_MARKER);
-      const agentReply = requiresApproval
-        ? rawReply.trimStart().slice(QUEUE_ACTION_MARKER.length).trimStart()
+        !input.confirmed && (hasQueueMarker || looksLikeWritePreview);
+      const agentReply = hasQueueMarker
+        ? trimmedReply.slice(QUEUE_ACTION_MARKER.length).trimStart()
         : rawReply;
       const formattedAgentReply = requiresApproval
         ? formatCalendarApprovalPreview(
@@ -1372,6 +2019,7 @@ ${
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: reconnectReply(reconnectPlugin),
+          cause: new ReconnectRequiredError(reconnectPlugin),
         });
       }
 

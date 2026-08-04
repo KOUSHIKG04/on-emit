@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { env } from "@/env";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { corsair } from "@/server/corsair";
+import { corsair, getCorsairConnectionStatus } from "@/server/corsair";
 import {
   corsairAccounts,
   corsairEmailPriorities,
@@ -16,6 +16,7 @@ import {
   createCorsairGoogleTenantId,
   isMissingGoogleAccountsSchema,
   listGoogleAccounts,
+  type Database,
 } from "@/server/integrations/google-accounts";
 import { createWebhookTenantToken } from "@/server/webhooks/tenant-token";
 
@@ -33,32 +34,43 @@ function schemaRequiredError(error: unknown) {
   });
 }
 
+async function resolveTenantId(
+  ctx: {
+    db: Database;
+    userId: string;
+    corsairTenantId: string;
+  },
+  requestedAccountId?: string,
+) {
+  if (!requestedAccountId) return ctx.corsairTenantId;
+  if (requestedAccountId === "legacy") return ctx.userId;
+
+  const [account] = await ctx.db
+    .select({ corsairTenantId: corsairGoogleAccounts.corsairTenantId })
+    .from(corsairGoogleAccounts)
+    .where(
+      and(
+        eq(corsairGoogleAccounts.id, requestedAccountId),
+        eq(corsairGoogleAccounts.userId, ctx.userId),
+      ),
+    )
+    .limit(1);
+
+  if (!account) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Google account was not found.",
+    });
+  }
+
+  return account.corsairTenantId;
+}
+
 export const integrationsRouter = createTRPCRouter({
   webhookConfig: protectedProcedure
     .input(z.object({ accountId: accountId.optional() }).optional())
     .query(async ({ ctx, input }) => {
-      let tenantId = ctx.corsairTenantId;
-
-      if (input?.accountId && input.accountId !== "legacy") {
-        const [account] = await ctx.db
-          .select({
-            corsairTenantId: corsairGoogleAccounts.corsairTenantId,
-          })
-          .from(corsairGoogleAccounts)
-          .where(
-            and(
-              eq(corsairGoogleAccounts.id, input.accountId),
-              eq(corsairGoogleAccounts.userId, ctx.userId),
-            ),
-          )
-          .limit(1);
-
-        if (account) {
-          tenantId = account.corsairTenantId;
-        }
-      } else if (input?.accountId === "legacy") {
-        tenantId = ctx.userId;
-      }
+      const tenantId = await resolveTenantId(ctx, input?.accountId);
 
       const url = new URL("/api/webhooks/corsair", env.APP_URL);
       url.searchParams.set("tenantId", tenantId);
@@ -86,9 +98,9 @@ export const integrationsRouter = createTRPCRouter({
 
     const accountStatuses = await Promise.all(
       accounts.map(async (account) => {
-        const status = await corsair.manage.connectionStatus.get({
-          tenantId: account.corsairTenantId,
-        });
+        const status = await getCorsairConnectionStatus(
+          account.corsairTenantId,
+        );
 
         return {
           id: account.id,
@@ -314,32 +326,7 @@ export const integrationsRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        let tenantId = ctx.corsairTenantId;
-
-        if (input.accountId && input.accountId !== "legacy") {
-          const [account] = await ctx.db
-            .select({
-              corsairTenantId: corsairGoogleAccounts.corsairTenantId,
-            })
-            .from(corsairGoogleAccounts)
-            .where(
-              and(
-                eq(corsairGoogleAccounts.id, input.accountId),
-                eq(corsairGoogleAccounts.userId, ctx.userId),
-              ),
-            )
-            .limit(1);
-
-          if (!account) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "Google account was not found.",
-            });
-          }
-          tenantId = account.corsairTenantId;
-        } else if (input.accountId === "legacy") {
-          tenantId = ctx.userId;
-        }
+        const tenantId = await resolveTenantId(ctx, input.accountId);
 
         const link = await corsair.manage.connect.createLink({
           plugin: input.plugin,

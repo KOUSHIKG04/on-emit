@@ -5,8 +5,6 @@ import { and, eq, inArray } from "drizzle-orm";
 import { env } from "@/env";
 import { db } from "@/server/db";
 import { corsairEmailPriorities } from "@/server/db/schema";
-import { getTenantCorsair } from "@/server/corsair";
-import { parseGmailRaw } from "@/server/email/parse-email";
 
 export type EmailPriority = "high" | "normal" | "low";
 export type PrioritySource = "openai" | "rules";
@@ -56,42 +54,6 @@ function classifyWithRules(thread: ThreadForPriority): PriorityResult {
   };
 }
 
-async function loadMessageBodies(
-  tenantId: string,
-  threads: ThreadForPriority[],
-) {
-  const tenantCorsair = getTenantCorsair(tenantId);
-
-  return Promise.all(
-    threads.map(async (thread) => {
-      if (!thread.latestMessageId) {
-        return { ...thread, body: thread.snippet };
-      }
-
-      try {
-        const message = await tenantCorsair.gmail.api.messages.get({
-          userId: "me",
-          id: thread.latestMessageId,
-          format: "raw",
-        });
-        if (!message.raw) return { ...thread, body: thread.snippet };
-
-        const parsed = await parseGmailRaw(message.raw);
-        const body = (parsed.text ?? thread.snippet)
-          .replace(/\s+/g, " ")
-          .trim();
-        return { ...thread, body: body.slice(0, 6_000) };
-      } catch (error) {
-        console.warn(
-          `Could not load ${thread.latestMessageId} for priority:`,
-          error,
-        );
-        return { ...thread, body: thread.snippet };
-      }
-    }),
-  );
-}
-
 function readResponseText(payload: unknown) {
   if (!payload || typeof payload !== "object" || !("output" in payload)) {
     return null;
@@ -121,12 +83,10 @@ function readResponseText(payload: unknown) {
 }
 
 async function classifyWithOpenAI(
-  tenantId: string,
   threads: ThreadForPriority[],
 ): Promise<Map<string, PriorityResult>> {
   if (!env.OPENAI_API_KEY || threads.length === 0) return new Map();
 
-  const messages = await loadMessageBodies(tenantId, threads);
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -146,11 +106,11 @@ async function classifyWithOpenAI(
         {
           role: "user",
           content: JSON.stringify(
-            messages.map((message) => ({
-              threadId: message.id,
-              from: message.senderEmail,
-              subject: message.subject,
-              body: message.body,
+            threads.map((thread) => ({
+              threadId: thread.id,
+              from: thread.senderEmail,
+              subject: thread.subject,
+              bodyPreview: thread.snippet,
             })),
           ),
         },
@@ -263,7 +223,7 @@ export async function getEmailPriorities(
 
   let aiResults = new Map<string, PriorityResult>();
   try {
-    aiResults = await classifyWithOpenAI(tenantId, missing);
+    aiResults = await classifyWithOpenAI(missing);
   } catch (error) {
     console.error("OpenAI priority classification failed; using rules:", error);
   }

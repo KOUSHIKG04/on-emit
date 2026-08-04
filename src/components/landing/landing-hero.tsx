@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 
-import { ArrowRight, Zap } from "@/components/icons";
 import { ProductCanvas } from "@/components/landing/product-canvas";
 
 export function LandingHero() {
@@ -36,14 +35,14 @@ export function LandingHero() {
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
             <Link
               href="/signup"
-              className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 text-xs font-semibold text-neutral-800 uppercase transition-all hover:bg-amber-300"
+              className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 text-sm font-semibold text-neutral-800 uppercase transition-all hover:bg-amber-300"
             >
               Create your workspace
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              {/* <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" /> */}
             </Link>
             <a
               href="#features"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/12 bg-white/[0.03] px-5 text-xs font-medium text-white/75 uppercase transition-colors hover:bg-white/[0.07] hover:text-white"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/12 bg-white/3 px-5 text-xs font-medium text-white/75 uppercase transition-colors hover:bg-white/[0.07] hover:text-white"
             >
               Explore features
             </a>
