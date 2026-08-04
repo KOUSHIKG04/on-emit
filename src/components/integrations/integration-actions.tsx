@@ -108,7 +108,7 @@ function ConnectionButton({
           {loading ? <LoaderCircle className="animate-spin" /> : <Icon />}
           <span className="hidden xl:inline">{label}</span>
           <CheckCircle2 className="size-3.5 text-emerald-500" />
-          <ChevronDown className="size-3.5 text-muted-foreground" />
+          <ChevronDown className="text-muted-foreground size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
           <DropdownMenuLabel className="flex items-center gap-2">

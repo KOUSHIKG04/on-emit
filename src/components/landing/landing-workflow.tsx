@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 
-import { ArrowRight, Zap } from "@/components/icons";
+import { Zap } from "@/components/icons";
 
 const workflow = [
   {
@@ -50,7 +50,7 @@ export function WorkflowSection() {
             <p className="text-xs font-semibold tracking-[0.18em] text-amber-300 uppercase">
               From setup to flow
             </p>
-            <h2 className="mt-4 text-2xl sm:text-3xl lg:text-4xl leading-[1.08] font-semibold tracking-[-0.04em]">
+            <h2 className="mt-4 text-2xl leading-[1.08] font-semibold tracking-[-0.04em] sm:text-3xl lg:text-4xl">
               Connected in minutes.
               <br />
               Useful every hour.
@@ -107,7 +107,7 @@ export function LandingCta() {
           className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.7),transparent_26%),linear-gradient(120deg,transparent_55%,rgba(0,0,0,0.08))]"
         />
         <Zap className="relative mx-auto size-10 fill-current" />
-        <h2 className="relative mx-auto mt-6 max-w-3xl text-3xl sm:text-4xl lg:text-5xl leading-[1.04] font-semibold tracking-[-0.05em] text-balance">
+        <h2 className="relative mx-auto mt-6 max-w-3xl text-3xl leading-[1.04] font-semibold tracking-[-0.05em] text-balance sm:text-4xl lg:text-5xl">
           Your work already emits signals. Act on the right ones.
         </h2>
         <p className="relative mx-auto mt-6 max-w-xl text-sm leading-6 text-neutral-800/70 sm:text-base">
@@ -119,7 +119,7 @@ export function LandingCta() {
           className="group relative mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-neutral-950 px-5 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5"
         >
           Create your workspace
-          <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+          {/* <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" /> */}
         </Link>
       </motion.div>
     </section>

@@ -42,6 +42,8 @@ export function NavUser({ user, compact = false }: NavUserProps) {
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
+            id="workspace-account-menu-trigger"
+            aria-label="Open account menu"
             render={
               <SidebarMenuButton
                 size="lg"

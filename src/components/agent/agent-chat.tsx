@@ -15,13 +15,16 @@ import { toast } from "sonner";
 
 import {
   ArrowUp,
+  ChevronLeft,
   CalendarDays,
+  CalendarPlus,
   CheckCircle2,
   ChevronDown,
   Ghost2,
   Clock3,
   LoaderCircle,
   Mail,
+  MailPlus,
   Paperclip,
   Search,
   ShieldCheck,
@@ -39,7 +42,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -128,9 +130,10 @@ const ACCEPTED_IMAGE_TYPES = new Set<AgentAttachment["mimeType"]>([
 
 const EXAMPLE_PROMPTS = [
   {
-    label: "Summarize my unread mail",
-    prompt: "Summarize my unread mail and highlight anything urgent.",
-    icon: Sparkles,
+    label: "Create an email",
+    prompt:
+      "Create an email for me. Ask for the recipient, subject, and message details that are missing.",
+    icon: MailPlus,
   },
   {
     label: "What's on my calendar this week?",
@@ -138,14 +141,16 @@ const EXAMPLE_PROMPTS = [
     icon: CalendarDays,
   },
   {
-    label: "Find and archive an email",
-    prompt: "Find the latest email from Google and archive it.",
-    icon: Search,
+    label: "Manage an email",
+    prompt:
+      "Help me find and manage an email. Ask what message and action I want.",
+    icon: Mail,
   },
   {
-    label: "Schedule a 30 minute meeting",
-    prompt: "Schedule a 30 minute meeting tomorrow at 9 AM.",
-    icon: Clock3,
+    label: "Manage a calendar event",
+    prompt:
+      "Help me create, update, or cancel a calendar event. Ask for any missing details.",
+    icon: CalendarPlus,
   },
 ] as const;
 
@@ -267,33 +272,98 @@ function conversationTitle(message: string) {
     : normalized;
 }
 
-function formatUpdatedAt(timestamp: number) {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-
-  return new Intl.DateTimeFormat(undefined, {
-    ...(isToday
-      ? { hour: "numeric", minute: "2-digit" }
-      : { month: "short", day: "numeric" }),
-  }).format(date);
+function isActionRevisionRequest(message: string) {
+  return /\b(?:actually|change|correct|edit|instead|make\s+(?:it|that)|modify|move|no[,\s]|rather|reschedule|update)\b/i.test(
+    message,
+  );
 }
 
-function plainActionSummary(summary: string) {
-  return summary
+function isActionPreview(message: string) {
+  return /^(?:I will|I'll)\s+(?:add|archive|cancel|compose|create|delete|draft|forward|invite|mark|modify|move|remove|reply|reschedule|save|schedule|send|trash|untrash|update)\b/i.test(
+    message.trimStart(),
+  );
+}
+
+function reconcileStoredActionRevision(
+  messages: ChatMessage[],
+  actions: QueuedAction[],
+  updatedAt: number,
+) {
+  const pendingAction = [...actions]
+    .reverse()
+    .find((action) => action.status === "pending");
+  if (!pendingAction) return { messages, actions };
+
+  const linkedMessageIndex = messages.findIndex(
+    (message) => message.actionId === pendingAction.id,
+  );
+
+  for (
+    let index = messages.length - 1;
+    index > linkedMessageIndex + 1;
+    index -= 1
+  ) {
+    const assistantMessage = messages[index];
+    const revisionMessage = messages[index - 1];
+
+    if (
+      assistantMessage?.role !== "assistant" ||
+      assistantMessage.actionId ||
+      !isActionPreview(assistantMessage.content) ||
+      revisionMessage?.role !== "user" ||
+      !isActionRevisionRequest(revisionMessage.content)
+    ) {
+      continue;
+    }
+
+    const revisionAttachments = revisionMessage.attachments ?? [];
+
+    return {
+      messages: messages.map((message) =>
+        message.id === assistantMessage.id
+          ? { ...message, actionId: pendingAction.id }
+          : message,
+      ),
+      actions: actions.map((action) =>
+        action.id === pendingAction.id
+          ? {
+              ...action,
+              request: `${action.request}\nUser revision: ${revisionMessage.content}`,
+              summary: assistantMessage.content,
+              attachments:
+                revisionAttachments.length > 0
+                  ? revisionAttachments
+                  : action.attachments,
+              createdAt: updatedAt,
+            }
+          : action,
+      ),
+    };
+  }
+
+  return { messages, actions };
+}
+
+function actionTitle(action: QueuedAction) {
+  const title = action.summary
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s*[-+]\s+/gm, "")
     .replace(/(?:\*\*|__)(.*?)(?:\*\*|__)/g, "$1")
     .replace(/[*~`>]/g, "")
+    .replace(/^(?:I will|I'll)\s+/i, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (!title) return action.request || "Attached image request";
+  return `${title.charAt(0).toUpperCase()}${title.slice(1)}`;
 }
 
 type ActionsPanelProps = {
   actions: QueuedAction[];
   disabled: boolean;
+  onBack?: () => void;
   onApprove: (action: QueuedAction) => void;
   onRemove: (actionId: string) => void;
 };
@@ -301,6 +371,7 @@ type ActionsPanelProps = {
 function ActionsPanel({
   actions,
   disabled,
+  onBack,
   onApprove,
   onRemove,
 }: ActionsPanelProps) {
@@ -311,6 +382,19 @@ function ActionsPanel({
   return (
     <div className="bg-background flex size-full min-h-0 flex-col">
       <div className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+        {onBack ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-1 shrink-0"
+            aria-label="Back to agent conversation"
+            title="Back to agent conversation"
+            onClick={onBack}
+          >
+            <ChevronLeft />
+          </Button>
+        ) : null}
         <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-md">
           <CheckCircle2 className="size-4" />
         </div>
@@ -341,68 +425,81 @@ function ActionsPanel({
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {[...actions].reverse().map((action) => (
-            <article key={action.id} className="border-b p-4">
-              <div className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md",
-                    action.status === "completed"
-                      ? "bg-emerald-500/10 text-emerald-500"
-                      : "bg-primary/10 text-primary",
-                  )}
-                >
-                  {action.status === "completed" ? (
-                    <CheckCircle2 className="size-4" />
-                  ) : action.status === "running" ? (
-                    <LoaderCircle className="size-4 animate-spin" />
-                  ) : (
-                    <Clock3 className="size-4" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-sm font-medium">
-                    {action.request || "Attached image request"}
-                  </p>
-                  <p className="text-muted-foreground mt-1 line-clamp-3 text-xs leading-5">
-                    {plainActionSummary(action.summary)}
-                  </p>
-                  <p className="text-muted-foreground mt-2 text-[11px]">
-                    {formatUpdatedAt(action.createdAt)}
-                  </p>
-                </div>
-              </div>
+          {[...actions].reverse().map((action) => {
+            const title = actionTitle(action);
 
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  title="Remove action"
-                  aria-label="Remove action"
-                  disabled={action.status === "running"}
-                  onClick={() => onRemove(action.id)}
-                >
-                  <Trash2 />
-                </Button>
-                {action.status !== "completed" ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={disabled || action.status === "running"}
-                    onClick={() => onApprove(action)}
-                  >
-                    {action.status === "running" ? (
-                      <LoaderCircle className="animate-spin" />
-                    ) : (
-                      <ShieldCheck />
+            return (
+              <article key={action.id} className="border-b p-4">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md",
+                      action.status === "completed"
+                        ? "bg-emerald-500/10 text-emerald-500"
+                        : "bg-primary/10 text-primary",
                     )}
-                    {action.status === "running" ? "Running" : "Approve & run"}
-                  </Button>
+                  >
+                    {action.status === "completed" ? (
+                      <CheckCircle2 className="size-4" />
+                    ) : action.status === "running" ? (
+                      <LoaderCircle className="size-4 animate-spin" />
+                    ) : (
+                      <Clock3 className="size-4" />
+                    )}
+                  </div>
+                  <div className="mt-1 min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium" title={title}>
+                      {title}
+                    </p>
+                  </div>
+                  {action.status === "completed" ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="-my-0.5 shrink-0"
+                      title="Remove action"
+                      aria-label="Remove action"
+                      onClick={() => onRemove(action.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  ) : null}
+                </div>
+
+                {action.status !== "completed" ? (
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Remove action"
+                      aria-label="Remove action"
+                      disabled={action.status === "running"}
+                      onClick={() => onRemove(action.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={disabled || action.status === "running"}
+                      onClick={() => onApprove(action)}
+                    >
+                      {action.status === "running" ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : (
+                        <ShieldCheck />
+                      )}
+                      {action.status === "running"
+                        ? "Running"
+                        : "Approve & run"}
+                    </Button>
+                  </div>
                 ) : null}
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>
@@ -534,12 +631,18 @@ export function AgentChat({
                 ]
               : [];
 
+          const reconciled = reconcileStoredActionRevision(
+            item.messages,
+            [...storedActions, ...legacyActions],
+            item.updatedAt,
+          );
+
           return {
             id: item.id,
             title: item.title,
             updatedAt: item.updatedAt,
-            messages: item.messages,
-            actions: [...storedActions, ...legacyActions],
+            messages: reconciled.messages,
+            actions: reconciled.actions,
             ...(item.context ? { context: item.context } : {}),
           };
         });
@@ -790,12 +893,20 @@ export function AgentChat({
             role: historyMessage.role,
             content: historyMessage.content
               .trim()
-              .slice(-MAX_HISTORY_MESSAGE_LENGTH),
+              .slice(0, MAX_HISTORY_MESSAGE_LENGTH),
           })),
         confirmed,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       });
-      const queuedActionId = result.requiresApproval ? createId() : undefined;
+      const revisedAction =
+        result.requiresApproval && isActionRevisionRequest(content)
+          ? [...selectedConversation.actions]
+              .reverse()
+              .find((action) => action.status === "pending")
+          : undefined;
+      const queuedActionId = result.requiresApproval
+        ? (revisedAction?.id ?? createId())
+        : undefined;
       const assistantMessage: ChatMessage = {
         id: createId(),
         role: "assistant",
@@ -824,17 +935,33 @@ export function AgentChat({
                         : action,
                     )
                   : result.requiresApproval && queuedActionId
-                    ? [
-                        ...conversation.actions,
-                        {
-                          id: queuedActionId,
-                          request: displayContent,
-                          summary: result.reply,
-                          attachments: agentAttachments,
-                          status: "pending" as const,
-                          createdAt: Date.now(),
-                        },
-                      ]
+                    ? revisedAction
+                      ? conversation.actions.map((action) =>
+                          action.id === revisedAction.id
+                            ? {
+                                ...action,
+                                request: `${action.request}\nUser revision: ${displayContent}`,
+                                summary: result.reply,
+                                attachments:
+                                  agentAttachments.length > 0
+                                    ? agentAttachments
+                                    : action.attachments,
+                                status: "pending" as const,
+                                createdAt: Date.now(),
+                              }
+                            : action,
+                        )
+                      : [
+                          ...conversation.actions,
+                          {
+                            id: queuedActionId,
+                            request: displayContent,
+                            summary: result.reply,
+                            attachments: agentAttachments,
+                            status: "pending" as const,
+                            createdAt: Date.now(),
+                          },
+                        ]
                     : conversation.actions,
               }
             : conversation,
@@ -852,16 +979,26 @@ export function AgentChat({
           toast.success("Agent action completed.");
         }
       }
-      if (result.requiresApproval) toast.success("Action added to the queue.");
+      if (result.requiresApproval) {
+        toast.success(
+          revisedAction
+            ? "Queued action updated."
+            : "Action added to the queue.",
+        );
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "The agent could not respond.";
+      const reconnectPluginValue =
+        error && typeof error === "object" && "data" in error
+          ? (error as { data?: { reconnectPlugin?: unknown } }).data
+              ?.reconnectPlugin
+          : undefined;
       const reconnectPlugin =
-        /Gmail connection has expired/i.test(errorMessage)
-          ? ("gmail" as const)
-          : /Google Calendar connection has expired/i.test(errorMessage)
-            ? ("googlecalendar" as const)
-            : null;
+        reconnectPluginValue === "gmail" ||
+        reconnectPluginValue === "googlecalendar"
+          ? reconnectPluginValue
+          : null;
 
       if (actionId) {
         setConversations((current) =>
@@ -931,7 +1068,7 @@ export function AgentChat({
       <Sheet open={mobileActionsOpen} onOpenChange={setMobileActionsOpen}>
         <SheetContent
           side="right"
-          className="w-[min(24rem,92vw)] gap-0 p-0"
+          className="w-[min(56rem,96vw)] gap-0 p-0 sm:max-w-4xl!"
           showCloseButton={false}
         >
           <SheetHeader className="sr-only">
@@ -943,6 +1080,7 @@ export function AgentChat({
           <ActionsPanel
             actions={activeConversation?.actions ?? []}
             disabled={chat.isPending}
+            onBack={() => setMobileActionsOpen(false)}
             onApprove={(action) => {
               if (!activeConversation) return;
               void runAgent(
@@ -963,14 +1101,16 @@ export function AgentChat({
       </Sheet>
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {activeConversation?.context?.type === "gmail-thread" ? (
-          <div className="bg-card flex shrink-0 items-center gap-2 border-b px-4 py-2.5 text-xs">
-            <Ghost2 className="text-primary size-4 shrink-0" />
-            <span className="text-muted-foreground">Working with</span>
-            <span className="min-w-0 truncate font-medium">
-              {activeConversation.context.subject}
-            </span>
-          </div>
+        {variant !== "panel" &&
+        activeConversation?.context?.type === "gmail-thread" ? (
+          // <div className="bg-card flex shrink-0 items-center gap-2 border-b px-4 py-2.5 text-xs">
+          //   <Ghost2 className="text-primary size-4 shrink-0" />
+          //   <span className="text-muted-foreground">Working with</span>
+          //   <span className="min-w-0 truncate font-medium">
+          //     {activeConversation.context.subject}
+          //   </span>
+          // </div>
+          <></>
         ) : null}
         <div className="min-h-0 flex-1 overflow-hidden">
           {activeConversation ? (
@@ -1249,7 +1389,7 @@ export function AgentChat({
 
             <Textarea
               rows={2}
-              className="max-h-32 min-h-14 resize-none rounded-none border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:none focus-visible:ring-0 md:text-base dark:bg-transparent"
+              className="focus-visible:none max-h-32 min-h-14 resize-none rounded-none border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:ring-0 md:text-base dark:bg-transparent"
               placeholder="Tell the agent what to do..."
               disabled={!hydrated || chat.isPending}
               {...register("message")}
@@ -1334,15 +1474,12 @@ export function AgentChat({
                       <ChevronDown className="text-muted-foreground" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-72">
-                      {/* <DropdownMenuLabel>AI mode</DropdownMenuLabel> */}
                       <DropdownMenuItem
                         disabled={
                           updateAiMode.isPending ||
                           aiSettings?.hasDefaultKey === false
                         }
-                        onClick={() =>
-                          void switchAiMode({ source: "default" })
-                        }
+                        onClick={() => void switchAiMode({ source: "default" })}
                       >
                         <CheckCircle2
                           className={cn(

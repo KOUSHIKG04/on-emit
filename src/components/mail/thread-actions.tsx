@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/providers/workspace-store-provider";
 import { api } from "@/trpc/client";
 
@@ -30,6 +31,7 @@ type ThreadActionsProps = {
   messageId: string | null;
   unread: boolean;
   starred: boolean;
+  agentOpen?: boolean;
   onOpenAgent: () => void;
   onArchived?: () => void;
 };
@@ -55,6 +57,7 @@ export function ThreadActions({
   messageId,
   unread,
   starred,
+  agentOpen = false,
   onOpenAgent,
   onArchived,
 }: ThreadActionsProps) {
@@ -202,9 +205,14 @@ export function ThreadActions({
         <Button
           type="button"
           size="icon-sm"
-          variant="ghost"
+          variant={agentOpen ? "default" : "ghost"}
+          className={cn(
+            "transition-[color,background-color,box-shadow]",
+            agentOpen && "shadow-sm",
+          )}
           title="Open email agent"
           aria-label="Open email agent"
+          aria-pressed={agentOpen}
           onClick={onOpenAgent}
         >
           <Ghost2 />

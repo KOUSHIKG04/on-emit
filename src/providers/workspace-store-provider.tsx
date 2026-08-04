@@ -24,7 +24,6 @@ export function WorkspaceStoreProvider({
   children,
   initialState,
 }: WorkspaceStoreProviderProps) {
-  
   const [store] = useState(() => createWorkspaceStore(initialState));
 
   return (

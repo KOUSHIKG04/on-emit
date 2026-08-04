@@ -30,18 +30,23 @@ export function createRawEmail({
 }: CreateRawEmailInput) {
   const headers = [
     `Date: ${new Date().toUTCString()}`,
-    `To: ${to.join(", ")}`,
-    ...(cc.length > 0 ? [`Cc: ${cc.join(", ")}`] : []),
+    `To: ${to.map(safeHeaderValue).join(", ")}`,
+    ...(cc.length > 0 ? [`Cc: ${cc.map(safeHeaderValue).join(", ")}`] : []),
     `Subject: ${encodeHeader(subject)}`,
     ...(inReplyTo ? [`In-Reply-To: ${safeHeaderValue(inReplyTo)}`] : []),
     ...(references ? [`References: ${safeHeaderValue(references)}`] : []),
     "MIME-Version: 1.0",
-    'Content-Type: text/plain; charset=UTF-8',
-    "Content-Transfer-Encoding: 8bit",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
   ];
 
   const normalizedBody = body.replace(/\r?\n/g, "\r\n");
-  const message = [...headers, "", normalizedBody].join("\r\n");
+  const encodedBody =
+    Buffer.from(normalizedBody, "utf8")
+      .toString("base64")
+      .match(/.{1,76}/g)
+      ?.join("\r\n") ?? "";
+  const message = [...headers, "", encodedBody].join("\r\n");
 
   return Buffer.from(message, "utf8").toString("base64url");
 }

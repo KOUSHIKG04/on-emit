@@ -12,7 +12,15 @@ export const env = createEnv({
     CORSAIR_KEK: z.string().min(1),
     GEMINI_API_KEY: z.string().min(1).optional(),
     GEMINI_AGENT_MODEL: z
-      .enum(["gemini-3.5-flash", "gemini-3.5-flash-lite"])
+      .enum([
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+      ])
       .default("gemini-3.5-flash-lite"),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_PRIORITY_MODEL: z.string().min(1).default("gpt-4o-mini"),

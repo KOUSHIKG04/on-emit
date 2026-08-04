@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
+  Ghost2,
   MailOpen,
   Paperclip,
   UserRound,
@@ -24,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -114,6 +116,19 @@ export function ThreadReader({
     }
   }, [thread?.unread, selectedThreadId, markAsRead]);
 
+  function openEmailAgent() {
+    if (!thread) return;
+    const latestMessage = thread.messages.at(-1);
+
+    requestNewAgentChat({
+      type: "gmail-thread",
+      threadId: thread.id,
+      subject: thread.subject,
+      senderEmail: latestMessage?.from.email ?? null,
+    });
+    setAgentOpen(true);
+  }
+
   if (!selectedThreadId) {
     return (
       <Card className="min-h-[550px]">
@@ -137,18 +152,52 @@ export function ThreadReader({
       <Sheet open={agentOpen} onOpenChange={setAgentOpen}>
         <SheetContent
           side="right"
-          className="w-[min(42rem,96vw)] gap-0 p-0 sm:max-w-2xl"
-          showCloseButton
+          className="w-[min(56rem,96vw)] gap-0 p-0 sm:max-w-4xl!"
+          showCloseButton={false}
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Email agent</SheetTitle>
-            <SheetDescription>
-              Chat with the agent about the selected Gmail conversation.
-            </SheetDescription>
+          <SheetHeader className="flex h-16 shrink-0 flex-row items-center gap-3 border-b px-4 py-0">
+            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <Ghost2 className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <SheetTitle className="truncate text-sm font-semibold">
+                Email agent
+              </SheetTitle>
+              <SheetDescription className="truncate text-xs">
+                {thread?.subject ?? "Ask about this conversation"}
+              </SheetDescription>
+            </div>
+            <SheetClose
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close email agent"
+                />
+              }
+            >
+              <X />
+            </SheetClose>
           </SheetHeader>
-          <AgentChat variant="panel" />
+          <div className="min-h-0 flex-1">
+            <AgentChat variant="panel" />
+          </div>
         </SheetContent>
       </Sheet>
+
+      {thread && !agentOpen ? (
+        <Button
+          type="button"
+          size="icon-lg"
+          className="fixed right-6 bottom-6 z-40 size-12 rounded-full shadow-lg"
+          aria-label="Open email agent"
+          title="Open email agent"
+          onClick={openEmailAgent}
+        >
+          <Ghost2 />
+        </Button>
+      ) : null}
 
       {isLoading ? (
         <CardContent>
@@ -184,30 +233,10 @@ export function ThreadReader({
                   messageId={thread.messages.at(-1)?.id ?? null}
                   unread={thread.unread}
                   starred={thread.starred}
-                  onOpenAgent={() => {
-                    const latestMessage = thread.messages.at(-1);
-                    requestNewAgentChat({
-                      type: "gmail-thread",
-                      threadId: thread.id,
-                      subject: thread.subject,
-                      senderEmail: latestMessage?.from.email ?? null,
-                    });
-                    setAgentOpen(true);
-                  }}
+                  agentOpen={agentOpen}
+                  onOpenAgent={openEmailAgent}
                   {...(onClose ? { onArchived: onClose } : {})}
                 />
-                {onClose ? (
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    className="shrink-0"
-                    aria-label="Close conversation"
-                    onClick={onClose}
-                  >
-                    <X />
-                  </Button>
-                ) : null}
               </div>
             </div>
           </CardHeader>

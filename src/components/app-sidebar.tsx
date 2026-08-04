@@ -13,6 +13,7 @@ import {
   Settings,
   FocusCentered,
   Zap,
+  X,
 } from "@/components/icons";
 
 import { CalendarSidebar } from "@/components/calendar/calendar-sidebar";
@@ -20,6 +21,16 @@ import { AgentSidebar } from "@/components/agent/agent-sidebar";
 import { GmailSearch } from "@/components/mail/gmail-search";
 import { InboxPanel } from "@/components/mail/inbox-panel";
 import { NavUser } from "@/components/nav-user";
+import { AnalyticsDrawerContent } from "@/components/workspace/analytics-bento";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Sidebar,
   SidebarContent,
@@ -59,7 +70,6 @@ const primaryItems: WorkspaceItem[] = [
 
 const utilityItems: WorkspaceItem[] = [
   { title: "Advanced search", href: "/search", icon: Search },
-  { title: "Analytics", href: "/analytics", icon: ChartBar },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -70,6 +80,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const router = useRouter();
   const utils = api.useUtils();
   const sidebarWidth = useWorkspaceStore((state) => state.sidebarWidth);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const { open, setOpen, setOpenMobile } = useSidebar();
   const panelRoute =
     pathname === "/inbox" ||
@@ -120,9 +131,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               <SidebarMenuButton
                 render={<Link href="/focus" />}
                 size="lg"
+                tooltip="On Emit"
+                tooltipAlways
                 className="justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0"
                 aria-label="On Emit"
-                title="On Emit"
                 onClick={() => prepareNavigation("/focus")}
               >
                 <div className="flex size-7 items-center justify-center rounded-lg bg-amber-400 text-amber-950 shadow-sm">
@@ -146,13 +158,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                       <SidebarMenuButton
                         render={<Link href={item.href} />}
                         isActive={active}
+                        tooltip={item.title}
+                        tooltipAlways
                         className={cn(
                           "justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
                           active &&
                             "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
                         )}
                         aria-label={item.title}
-                        title={item.title}
                         onClick={() => prepareNavigation(item.href)}
                       >
                         <Icon className="size-4" />
@@ -161,6 +174,29 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                     </SidebarMenuItem>
                   );
                 })}
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    type="button"
+                    isActive={analyticsOpen}
+                    tooltip="Activity insights"
+                    tooltipAlways
+                    className={cn(
+                      "justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
+                      analyticsOpen &&
+                        "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
+                    )}
+                    aria-label="Open activity insights"
+                    aria-pressed={analyticsOpen}
+                    onClick={() => {
+                      setOpenMobile(false);
+                      setAnalyticsOpen(true);
+                    }}
+                  >
+                    <ChartBar className="size-4" />
+                    <span className="sr-only">Activity insights</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -177,13 +213,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                   <SidebarMenuButton
                     render={<Link href={item.href} />}
                     isActive={active}
+                    tooltip={item.title}
+                    tooltipAlways
                     className={cn(
                       "justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
                       active &&
                         "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
                     )}
                     aria-label={item.title}
-                    title={item.title}
                     onClick={() => prepareNavigation(item.href)}
                   >
                     <Icon className="size-4" />
@@ -215,6 +252,47 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       {open && panelRoute && pathname !== "/agent" ? (
         <SidebarResizeHandle />
       ) : null}
+
+      <Sheet open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
+        <SheetContent
+          side="right"
+          className="w-[min(44rem,94vw)] gap-0 p-0 sm:max-w-[44rem]!"
+          showCloseButton={false}
+        >
+          <SheetHeader className="flex h-16 shrink-0 flex-row items-center gap-3 border-b px-4 py-0">
+            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-xl">
+              <ChartBar className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <SheetTitle className="truncate text-sm font-semibold">
+                Activity insights
+              </SheetTitle>
+              <SheetDescription className="truncate text-xs">
+                Email patterns, calendar load, and meeting attendance
+              </SheetDescription>
+            </div>
+            <SheetClose
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close activity insights"
+                />
+              }
+            >
+              <X />
+            </SheetClose>
+          </SheetHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <AnalyticsDrawerContent
+              open={analyticsOpen}
+              userEmail={user.email}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </Sidebar>
   );
 }

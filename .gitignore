@@ -25,6 +25,8 @@ next-env.d.ts
 # misc
 .DS_Store
 *.pem
+.codex
+.agents
 
 # debug
 npm-debug.log*

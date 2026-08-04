@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { corsair, getTenantCorsair } from "@/server/corsair";
+import { getCorsairConnectionStatus, getTenantCorsair } from "@/server/corsair";
 import { createRawEmail } from "@/server/email/create-raw-email";
 import { getEmailPriorities } from "@/server/email/classify-priority";
 import {
@@ -129,9 +129,7 @@ const mailboxListInput = z.object({
 });
 
 async function ensureGmailConnected(tenantId: string) {
-  const connectionStatus = await corsair.manage.connectionStatus.get({
-    tenantId,
-  });
+  const connectionStatus = await getCorsairConnectionStatus(tenantId);
 
   if (connectionStatus.gmail !== "connected") {
     throw new TRPCError({
@@ -164,7 +162,8 @@ async function listThreadSummaries(
       tenantCorsair.gmail.api.threads.get({
         userId: "me",
         id: threadId,
-        format: "full",
+        format: "metadata",
+        metadataHeaders: ["From", "Subject"],
       }),
     ),
   );
@@ -286,6 +285,57 @@ export const gmailRouter = createTRPCRouter({
       throw new TRPCError({
         code: "BAD_GATEWAY",
         message: "Gmail statistics could not be loaded.",
+      });
+    }
+  }),
+
+  activity: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      await ensureGmailConnected(ctx.corsairTenantId);
+      const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
+      const now = new Date();
+      const endOfToday = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+      );
+
+      return await Promise.all(
+        Array.from({ length: 7 }, async (_, index) => {
+          const start = new Date(endOfToday);
+          start.setUTCDate(start.getUTCDate() - (7 - index));
+          const end = new Date(start);
+          end.setUTCDate(end.getUTCDate() + 1);
+          const date = start.toISOString().slice(0, 10);
+          const range = `after:${Math.floor(start.getTime() / 1_000)} before:${Math.floor(end.getTime() / 1_000)}`;
+
+          const [messages, unread] = await Promise.all([
+            tenantCorsair.gmail.api.messages.list({
+              userId: "me",
+              q: `in:inbox ${range}`,
+              maxResults: 1,
+              includeSpamTrash: false,
+            }),
+            tenantCorsair.gmail.api.messages.list({
+              userId: "me",
+              q: `in:inbox is:unread ${range}`,
+              maxResults: 1,
+              includeSpamTrash: false,
+            }),
+          ]);
+
+          return {
+            date,
+            messages: messages.resultSizeEstimate ?? 0,
+            unread: unread.resultSizeEstimate ?? 0,
+          };
+        }),
+      );
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+
+      console.error("Failed to load Gmail activity:", error);
+      throw new TRPCError({
+        code: "BAD_GATEWAY",
+        message: "Gmail activity could not be loaded.",
       });
     }
   }),
@@ -468,9 +518,9 @@ export const gmailRouter = createTRPCRouter({
          * Check whether the Supabase user's Gmail account
          * is connected to their Corsair tenant.
          */
-        const connectionStatus = await corsair.manage.connectionStatus.get({
-          tenantId: ctx.corsairTenantId,
-        });
+        const connectionStatus = await getCorsairConnectionStatus(
+          ctx.corsairTenantId,
+        );
 
         if (connectionStatus.gmail !== "connected") {
           throw new TRPCError({
@@ -602,9 +652,9 @@ export const gmailRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       try {
-        const connectionStatus = await corsair.manage.connectionStatus.get({
-          tenantId: ctx.corsairTenantId,
-        });
+        const connectionStatus = await getCorsairConnectionStatus(
+          ctx.corsairTenantId,
+        );
 
         if (connectionStatus.gmail !== "connected") {
           throw new TRPCError({

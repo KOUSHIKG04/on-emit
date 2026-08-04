@@ -37,9 +37,14 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     // Rejected claims lookup should not abort context creation for public procedures.
   }
 
-  const corsairTenantId = userId
-    ? await getActiveCorsairTenantId(db, userId)
-    : null;
+  let corsairTenantId: string | null = null;
+  if (userId) {
+    try {
+      corsairTenantId = await getActiveCorsairTenantId(db, userId);
+    } catch {
+      // Database outages should not prevent public procedures from creating context.
+    }
+  }
 
   return {
     db,
@@ -65,6 +70,14 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         ...shape.data,
         zodError:
           error.cause instanceof ZodError ? error.cause.flatten() : null,
+        reconnectPlugin:
+          error.cause &&
+          typeof error.cause === "object" &&
+          "reconnectPlugin" in error.cause &&
+          (error.cause.reconnectPlugin === "gmail" ||
+            error.cause.reconnectPlugin === "googlecalendar")
+            ? error.cause.reconnectPlugin
+            : null,
       },
     };
   },

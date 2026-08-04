@@ -43,7 +43,7 @@ On Emit is a Superhuman-style Gmail and Google Calendar command center built wit
 | `NEXT_PUBLIC_SUPABASE_URL`             | Yes      | Supabase project URL                                       |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes      | Supabase publishable/anon key                              |
 | `GEMINI_API_KEY`                       | Agent    | Server-only key for the built-in agent                     |
-| `GEMINI_AGENT_MODEL`                   | No       | Optional server-side built-in model override               |
+| `GEMINI_AGENT_MODEL`                   | No       | Built-in model: `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.5-flash`, or `gemini-2.5-flash-lite`; other values fail startup validation |
 | `OPENAI_API_KEY`                       | No       | Enables model-backed priority classification               |
 | `OPENAI_PRIORITY_MODEL`                | No       | Optional priority-classifier model override                |
 
@@ -77,11 +77,74 @@ Corsair owns `corsair_integrations`, `corsair_accounts`, `corsair_entities`, and
 ## Verification
 
 ```bash
+pnpm format:check
+pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 ```
 
 Manual checks should cover Supabase sign-in, both Corsair connections, live inbox/calendar data, MIME email rendering, attachment download, reply/draft/actions, advanced search, event update/cancellation, priority caching, webhook refresh, and preview/confirm agent chat.
+
+## Production deployment (Vercel + Supabase)
+
+1. Create a production Supabase project and copy its project URL, publishable
+   key, and Postgres connection string. Use the transaction pooler connection
+   string for the deployed serverless app when available; use a direct
+   connection for the one-off migration command.
+2. Generate a permanent `CORSAIR_KEK` with at least 32 random bytes, store it in
+   a password manager, and never rotate or regenerate it during ordinary
+   redeployments. Existing encrypted integration credentials depend on it.
+3. Before touching an existing database, take a backup and compare its current
+   schema/migration history with `drizzle/`. For a clean database, set the
+   production `DATABASE_URL` locally and run `pnpm db:migrate`. For an existing
+   database, establish a reviewed baseline first so old migrations are not
+   replayed. Do not run `pnpm db:push` against production.
+4. In Supabase **Authentication > URL Configuration**, set **Site URL** to the
+   final HTTPS app origin and add `<APP_URL>/auth/callback` as an exact redirect
+   URL. Keep localhost and preview patterns only for their respective
+   environments.
+5. In Supabase **Authentication > Password Security**, require a strong
+   password and enable leaked-password protection when the project plan
+   supports it.
+6. Import the GitHub repository into Vercel. Keep the detected Next.js preset,
+   use `pnpm build` as the build command, and select the repository root as the
+   root directory.
+7. Add every required variable from `.env.example` to the Vercel **Production**
+   environment. Set `APP_URL` to the final HTTPS origin with no path. Keep
+   `DATABASE_URL`, `CORSAIR_KEK`, `GEMINI_API_KEY`, and `OPENAI_API_KEY`
+   server-only; never rename them with a `NEXT_PUBLIC_` prefix.
+8. Deploy once, attach the final custom domain if one is used, update `APP_URL`
+   and Supabase URL settings if the origin changed, then redeploy because Vercel
+   environment changes do not alter an already-built deployment.
+9. In Corsair, configure the production Google OAuth credentials and set the
+   callback to `<APP_URL>/api/corsair/oauth/callback`. Publish the Google OAuth
+   consent screen (and complete any restricted/sensitive-scope verification)
+   before launch so refresh tokens do not expire under Testing-mode rules.
+10. Sign in to On Emit, open **Connected services**, and connect both Gmail and
+    Google Calendar. Copy the tenant-protected webhook URL shown there into the
+    Corsair Gmail and Calendar webhook configuration, then complete the Gmail
+    Pub/Sub and Calendar watch setup from the Corsair videos.
+11. Run the authenticated production smoke checklist below with dedicated test
+    accounts. Use preview first, confirm each external write before execution,
+    and remove test messages/events afterward.
+
+### Authenticated production smoke checklist
+
+- Sign up, confirm the account, sign out, and sign back in.
+- Connect/reconnect Gmail and Calendar; verify status and account isolation.
+- Load real inbox messages, open a MIME/HTML email, download an attachment,
+  search with Gmail operators, save a draft, reply, archive, and toggle read
+  state.
+- Load the real calendar, create a 30-minute event with a test attendee, verify
+  it in Google Calendar, update it, and cancel it with attendee notifications.
+- Ask the agent to summarize a narrow unread range, preview an email/event
+  action, reject one preview, then approve one test action. Verify conversation
+  context and BYOK/default-model switching.
+- Trigger one Gmail and one Calendar webhook and confirm the open browser
+  refreshes without polling.
+- Run Supabase's database linter and verify the RLS warnings for all
+  `corsair_*` tables are cleared.
 
 ## Feature branches
 
