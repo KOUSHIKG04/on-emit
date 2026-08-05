@@ -1,15 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { corsair } from "@/server/corsair";
+import { corsair, invalidateCorsairConnectionStatus } from "@/server/corsair";
+import { getSafeNextPath } from "@/lib/auth/safe-next-path";
 
 function appRedirect(request: NextRequest, params: Record<string, string>) {
-  const url = new URL("/settings", request.url);
+  const returnToCookie = request.cookies.get("connect_return_to")?.value;
+  const targetPath = getSafeNextPath(returnToCookie, "/settings");
+
+  const url = new URL(targetPath, request.url);
 
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
 
-  return NextResponse.redirect(url);
+  const response = NextResponse.redirect(url);
+  response.cookies.delete("connect_return_to");
+  return response;
 }
 
 export async function GET(request: NextRequest) {
@@ -30,6 +36,7 @@ export async function GET(request: NextRequest) {
       code,
       state,
     });
+    invalidateCorsairConnectionStatus(result.tenantId);
 
     return appRedirect(request, { connected: result.plugin });
   } catch (error) {

@@ -58,6 +58,10 @@ export function getCorsairConnectionStatus(tenantId: string) {
   return request;
 }
 
+export function invalidateCorsairConnectionStatus(tenantId: string) {
+  connectionStatusCache.delete(tenantId);
+}
+
 export function getTenantCorsair(tenantId: string) {
   return corsair.withTenant(tenantId);
 }

@@ -3,7 +3,7 @@ WITH ranked_active_accounts AS (
 		"id",
 		row_number() OVER (
 			PARTITION BY "user_id"
-			ORDER BY "updated_at" DESC, "created_at" ASC, "id" ASC
+			ORDER BY "created_at" ASC, "id" ASC
 		) AS "active_rank"
 	FROM "corsair_google_accounts"
 	WHERE "is_active" = true

@@ -4,6 +4,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { OAuthToastListener } from "@/components/integrations/oauth-toast-listener";
+import { WorkspaceConnectionBoundary } from "@/components/integrations/workspace-connection-boundary";
 import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import { WorkspaceStoreProvider } from "@/providers/workspace-store-provider";
 import { RealtimeSync } from "@/components/realtime/realtime-sync";
@@ -54,7 +55,7 @@ export default async function WorkspaceLayout({
 
         <SidebarInset className="min-w-0">
           <WorkspaceHeader />
-          {children}
+          <WorkspaceConnectionBoundary>{children}</WorkspaceConnectionBoundary>
         </SidebarInset>
       </WorkspaceSidebarProvider>
     </WorkspaceStoreProvider>

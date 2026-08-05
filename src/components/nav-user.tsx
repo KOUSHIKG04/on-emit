@@ -49,14 +49,14 @@ export function NavUser({ user, compact = false }: NavUserProps) {
                 size="lg"
                 className={
                   compact
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground data-open:bg-sidebar-accent hover:bg-sidebar-accent justify-center font-semibold shadow-xs group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0! md:h-10 md:p-0"
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground data-open:bg-sidebar-accent hover:bg-sidebar-accent justify-center max-md:justify-start max-md:px-3 font-semibold shadow-xs group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:p-0! md:h-10 md:p-0"
                     : "data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 }
               />
             }
           >
             {compact ? (
-              <span className="text-sidebar-accent-foreground flex size-full items-center justify-center text-sm font-semibold">
+              <span className="text-sidebar-accent-foreground flex size-9 shrink-0 items-center justify-center text-sm font-semibold md:size-full">
                 {initial}
               </span>
             ) : (
@@ -70,7 +70,7 @@ export function NavUser({ user, compact = false }: NavUserProps) {
             <div
               className={
                 compact
-                  ? "sr-only"
+                  ? "sr-only max-md:not-sr-only grid min-w-0 flex-1 text-left text-sm leading-tight ml-2"
                   : "grid min-w-0 flex-1 text-left text-sm leading-tight"
               }
             >

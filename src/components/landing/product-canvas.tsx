@@ -110,7 +110,7 @@ export function ProductCanvas({
                   Wednesday, July 23
                 </p>
                 <h3 className="mt-1.5 text-lg font-semibold tracking-[-0.035em]">
-                  Good morning, {userName || ""}
+                  Good morning{userName.trim() ? `, ${userName.trim()}` : ""}
                 </h3>
               </div>
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-300/10 text-amber-300">

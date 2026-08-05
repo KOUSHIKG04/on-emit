@@ -95,42 +95,53 @@ const features: Array<{
 ];
 
 export function IntegrationsStrip() {
+  const reduceMotion = useReducedMotion();
+
   return (
-    <section className="border-y border-white/8 bg-white/[0.018]">
-      <div className="flex flex-col gap-5 px-6 py-6 sm:px-10 lg:flex-row lg:items-center lg:px-12">
+    <section className="overflow-hidden border-y border-white/8 bg-white/[0.018] py-4">
+      <div className="flex flex-col gap-3 px-4 sm:px-10 lg:flex-row lg:items-center lg:px-12">
         <p className="shrink-0 text-xs font-medium tracking-[0.16em] text-white/34 uppercase">
           Connected tools
         </p>
-        <div className="flex flex-wrap gap-x-6 gap-y-3 lg:ml-auto">
-          {integrations.map(({ name, icon, src }) => (
-            <div
-              key={name}
-              className="flex items-center gap-2 text-sm font-medium text-white/50"
-            >
-              <span className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white p-1.5 shadow-sm">
-                {icon ? (
-                  <svg
-                    aria-hidden
-                    viewBox="0 0 24 24"
-                    className="size-full"
-                    fill={`#${icon.hex}`}
-                  >
-                    <path d={icon.path} />
-                  </svg>
-                ) : (
-                  <Image
-                    alt=""
-                    aria-hidden
-                    src={src ?? "/brands/openai.svg"}
-                    width={20}
-                    height={20}
-                    className="size-full"
-                  />
-                )}
-              </span>
-              <span>{name}</span>
-            </div>
-          ))}
+
+        <div className="relative flex w-full min-w-0 overflow-hidden lg:ml-auto">
+          <motion.div
+            className="flex w-max items-center gap-8"
+            animate={reduceMotion ? undefined : { x: ["0%", "-50%"] }}
+            transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
+          >
+            {[...integrations, ...integrations, ...integrations].map(
+              ({ name, icon, src }, index) => (
+                <div
+                  key={`${name}-${index}`}
+                  className="flex shrink-0 items-center gap-2.5 text-sm font-medium text-white/65"
+                >
+                  <span className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white p-1.5 shadow-sm">
+                    {icon ? (
+                      <svg
+                        aria-hidden
+                        viewBox="0 0 24 24"
+                        className="size-full"
+                        fill={`#${icon.hex}`}
+                      >
+                        <path d={icon.path} />
+                      </svg>
+                    ) : (
+                      <Image
+                        alt=""
+                        aria-hidden
+                        src={src ?? "/brands/openai.svg"}
+                        width={20}
+                        height={20}
+                        className="size-full"
+                      />
+                    )}
+                  </span>
+                  <span>{name}</span>
+                </div>
+              ),
+            )}
+          </motion.div>
         </div>
       </div>
     </section>
@@ -166,26 +177,26 @@ export function ActivityRail() {
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="px-6 py-24 sm:px-10 lg:px-12 lg:py-36">
+    <section id="features" className="px-4 py-16 sm:px-10 lg:px-12 lg:py-36">
       <div className="max-w-3xl">
         <p className="text-xs font-semibold tracking-[0.18em] text-amber-300 uppercase">
           Designed for actual work
         </p>
-        <h2 className="mt-4 text-2xl leading-[1.08] font-semibold tracking-[-0.04em] text-balance sm:text-3xl lg:text-4xl">
+        <h2 className="mt-3 text-2xl leading-[1.12] font-semibold tracking-[-0.04em] text-balance sm:text-3xl lg:text-4xl">
           Less inbox management. More forward motion.
         </h2>
-        <p className="mt-5 max-w-2xl text-base leading-7 text-white/50">
+        <p className="mt-4 max-w-2xl text-sm leading-6 text-white/50 sm:text-base sm:leading-7">
           Every surface is shaped around the next useful action—not another feed
           to maintain.
         </p>
       </div>
 
-      <div className="mt-14 grid overflow-hidden rounded-3xl border border-white/10 bg-white/10 md:grid-cols-3">
+      <div className="mt-10 grid overflow-hidden border-y border-white/10 bg-white/10 max-sm:-mx-4 max-sm:w-[calc(100%+2rem)] sm:rounded-3xl sm:border sm:border-white/10 md:grid-cols-3">
         {features.map((feature) => (
           <article
             key={feature.title}
             className={cn(
-              "flex flex-col overflow-hidden border-b border-white/10 bg-[#111111] p-6 last:border-b-0 sm:p-7 md:border-r md:[&:nth-child(2)]:border-r-0 md:[&:nth-child(3)]:border-r md:[&:nth-child(3)]:border-b md:[&:nth-child(4)]:border-b md:[&:nth-child(5)]:border-r-0 md:[&:nth-child(5)]:border-b",
+              "flex flex-col justify-between overflow-hidden border-b border-white/10 bg-[#111111] p-5 last:border-b-0 sm:p-7 md:border-r md:[&:nth-child(2)]:border-r-0 md:[&:nth-child(3)]:border-r md:[&:nth-child(3)]:border-b md:[&:nth-child(4)]:border-b md:[&:nth-child(5)]:border-r-0 md:[&:nth-child(5)]:border-b",
               feature.className,
             )}
           >
@@ -193,10 +204,10 @@ export function FeaturesSection() {
               <span className="flex size-10 items-center justify-center rounded-xl border border-amber-300/15 bg-amber-300/8 text-amber-300">
                 <feature.icon className="size-5" />
               </span>
-              <h3 className="mt-5 text-xl font-semibold tracking-[-0.03em]">
+              <h3 className="mt-4 text-lg font-semibold tracking-[-0.03em] sm:mt-5 sm:text-xl">
                 {feature.title}
               </h3>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-white/45">
+              <p className="mt-2 max-w-sm text-xs leading-5 text-white/45 sm:text-sm sm:leading-6">
                 {feature.description}
               </p>
             </div>

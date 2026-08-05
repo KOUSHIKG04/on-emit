@@ -1,9 +1,9 @@
 const workspaceRoutePattern =
   /^\/(?:focus|inbox|calendar|search|agent|analytics|settings)(?:\/|$)/;
 
-export function getSafeNextPath(value: unknown) {
+export function getSafeNextPath(value: unknown, fallback = "/focus") {
   if (typeof value !== "string") {
-    return "/focus";
+    return fallback;
   }
 
   try {
@@ -14,12 +14,12 @@ export function getSafeNextPath(value: unknown) {
       destination.origin !== baseUrl.origin ||
       !workspaceRoutePattern.test(destination.pathname)
     ) {
-      return "/focus";
+      return fallback;
     }
 
     return `${destination.pathname}${destination.search}`;
   } catch {
-    return "/focus";
+    return fallback;
   }
 }
 

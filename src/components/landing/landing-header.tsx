@@ -44,15 +44,15 @@ export function LandingHeader() {
   return (
     <header
       className={cn(
-        "fixed inset-x-0 z-50 transition-[top,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        isScrolled ? "top-3 px-3 sm:top-4 sm:px-6" : "top-0 px-0",
+        "fixed inset-x-0 top-0 z-50 transition-[top,padding] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        isScrolled ? "md:top-3 md:px-3 lg:top-4 lg:px-6" : "top-0 px-0",
       )}
     >
       <nav
         className={cn(
-          "relative mx-auto flex h-14 w-full items-center justify-between bg-[#111111]/88 px-4 backdrop-blur-2xl transition-[max-width,border-radius,box-shadow,border-color,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-6",
+          "relative mx-auto flex h-14 w-full items-center justify-between bg-[#111111]/92 px-4 backdrop-blur-2xl transition-[max-width,border-radius,box-shadow,border-color,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-6",
           isScrolled
-            ? "max-w-7xl rounded-2xl border border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.32)]"
+            ? "w-full rounded-none border-x-0 border-t-0 border-b-white/10 shadow-none md:max-w-7xl md:rounded-2xl md:border md:border-white/10 md:shadow-[0_18px_60px_rgba(0,0,0,0.32)]"
             : "max-w-[100vw] rounded-none border border-x-transparent border-t-transparent border-b-white/10 shadow-none",
         )}
       >

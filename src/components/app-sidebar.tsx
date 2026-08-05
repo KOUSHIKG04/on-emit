@@ -123,7 +123,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     >
       <Sidebar
         collapsible="none"
-        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r"
+        className="w-[calc(var(--sidebar-width-icon)+1px)]! border-r max-md:w-full!"
       >
         <SidebarHeader className="h-16 shrink-0 justify-center border-b">
           <SidebarMenu>
@@ -133,13 +133,16 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                 size="lg"
                 tooltip="On Emit"
                 tooltipAlways
-                className="justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0"
+                className="justify-center max-md:justify-start max-md:px-3 group-data-[collapsible=icon]:w-full! md:h-10 md:p-0"
                 aria-label="On Emit"
                 onClick={() => prepareNavigation("/focus")}
               >
                 <div className="flex size-7 items-center justify-center rounded-lg bg-amber-400 text-amber-950 shadow-sm">
                   <Zap className="size-4 fill-current" />
                 </div>
+                <span className="sr-only max-md:not-sr-only ml-2 text-sm font-semibold tracking-tight">
+                  On Emit
+                </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -161,15 +164,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                         tooltip={item.title}
                         tooltipAlways
                         className={cn(
-                          "justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
+                          "justify-center max-md:justify-start max-md:px-3 group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
                           active &&
                             "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
                         )}
                         aria-label={item.title}
                         onClick={() => prepareNavigation(item.href)}
                       >
-                        <Icon className="size-4" />
-                        <span className="sr-only">{item.title}</span>
+                        <Icon className="size-4 shrink-0" />
+                        <span className="sr-only max-md:not-sr-only ml-2 text-sm font-medium">
+                          {item.title}
+                        </span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -182,7 +187,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                     tooltip="Activity insights"
                     tooltipAlways
                     className={cn(
-                      "justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
+                      "justify-center max-md:justify-start max-md:px-3 group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
                       analyticsOpen &&
                         "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
                     )}
@@ -193,8 +198,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                       setAnalyticsOpen(true);
                     }}
                   >
-                    <ChartBar className="size-4" />
-                    <span className="sr-only">Activity insights</span>
+                    <ChartBar className="size-4 shrink-0" />
+                    <span className="sr-only max-md:not-sr-only ml-2 text-sm font-medium">
+                      Activity insights
+                    </span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -216,15 +223,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                     tooltip={item.title}
                     tooltipAlways
                     className={cn(
-                      "justify-center group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
+                      "justify-center max-md:justify-start max-md:px-3 group-data-[collapsible=icon]:w-full! md:h-10 md:p-0",
                       active &&
                         "bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-xs",
                     )}
                     aria-label={item.title}
                     onClick={() => prepareNavigation(item.href)}
                   >
-                    <Icon className="size-4" />
-                    <span className="sr-only">{item.title}</span>
+                    <Icon className="size-4 shrink-0" />
+                    <span className="sr-only max-md:not-sr-only ml-2 text-sm font-medium">
+                      {item.title}
+                    </span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );
@@ -256,7 +265,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <Sheet open={analyticsOpen} onOpenChange={setAnalyticsOpen}>
         <SheetContent
           side="right"
-          className="w-[min(44rem,94vw)] gap-0 p-0 sm:max-w-[44rem]!"
+          className="w-full max-w-full sm:max-w-full md:max-w-full lg:max-w-[44rem]! gap-0 p-0"
           showCloseButton={false}
         >
           <SheetHeader className="flex h-16 shrink-0 flex-row items-center gap-3 border-b px-4 py-0">

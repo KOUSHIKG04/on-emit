@@ -4,13 +4,18 @@ import { z } from "zod";
 
 import { env } from "@/env";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
-import { corsair, getCorsairConnectionStatus } from "@/server/corsair";
+import {
+  corsair,
+  getCorsairConnectionStatus,
+  invalidateCorsairConnectionStatus,
+} from "@/server/corsair";
 import {
   corsairAccounts,
   corsairEmailPriorities,
   corsairEntities,
   corsairEvents,
   corsairGoogleAccounts,
+  corsairIntegrations,
 } from "@/server/db/schema";
 import {
   createCorsairGoogleTenantId,
@@ -315,6 +320,56 @@ export const integrationsRouter = createTRPCRouter({
         if (migrationError) throw migrationError;
         throw error;
       }
+    }),
+
+  disconnect: protectedProcedure
+    .input(
+      z.object({
+        plugin: connectablePlugin,
+        accountId: accountId.optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const tenantId = await resolveTenantId(ctx, input.accountId);
+
+      await ctx.db.transaction(async (transaction) => {
+        const linkedAccounts = await transaction
+          .select({ id: corsairAccounts.id })
+          .from(corsairAccounts)
+          .innerJoin(
+            corsairIntegrations,
+            eq(corsairAccounts.integrationId, corsairIntegrations.id),
+          )
+          .where(
+            and(
+              eq(corsairAccounts.tenantId, tenantId),
+              eq(corsairIntegrations.name, input.plugin),
+            ),
+          );
+        const linkedAccountIds = linkedAccounts.map(({ id }) => id);
+
+        if (linkedAccountIds.length > 0) {
+          await transaction
+            .delete(corsairEntities)
+            .where(inArray(corsairEntities.accountId, linkedAccountIds));
+          await transaction
+            .delete(corsairEvents)
+            .where(inArray(corsairEvents.accountId, linkedAccountIds));
+          await transaction
+            .delete(corsairAccounts)
+            .where(inArray(corsairAccounts.id, linkedAccountIds));
+        }
+
+        if (input.plugin === "gmail") {
+          await transaction
+            .delete(corsairEmailPriorities)
+            .where(eq(corsairEmailPriorities.tenantId, tenantId));
+        }
+      });
+
+      invalidateCorsairConnectionStatus(tenantId);
+
+      return { plugin: input.plugin, disconnected: true };
     }),
 
   connect: protectedProcedure

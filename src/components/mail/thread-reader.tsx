@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
+  ChevronLeft,
   Ghost2,
   MailOpen,
   Paperclip,
@@ -74,6 +75,9 @@ export function ThreadReader({
   onClose?: () => void;
 } = {}) {
   const storedThreadId = useWorkspaceStore((state) => state.selectedThreadId);
+  const setActiveAgentConversationId = useWorkspaceStore(
+    (state) => state.setActiveAgentConversationId,
+  );
   const requestNewAgentChat = useWorkspaceStore(
     (state) => state.requestNewAgentChat,
   );
@@ -118,21 +122,46 @@ export function ThreadReader({
 
   function openEmailAgent() {
     if (!thread) return;
-    const latestMessage = thread.messages.at(-1);
 
-    requestNewAgentChat({
-      type: "gmail-thread",
-      threadId: thread.id,
-      subject: thread.subject,
-      senderEmail: latestMessage?.from.email ?? null,
-    });
+    let existingId: string | null = null;
+    try {
+      const stored = window.localStorage.getItem("on-emit.agent-conversations");
+      if (stored) {
+        const parsed = JSON.parse(stored) as Array<{
+          id?: string;
+          context?: { type?: string; threadId?: string };
+        }>;
+        if (Array.isArray(parsed)) {
+          const match = parsed.find(
+            (c) =>
+              c?.context?.type === "gmail-thread" &&
+              c?.context?.threadId === thread.id,
+          );
+          if (match?.id) existingId = match.id;
+        }
+      }
+    } catch {
+      // Ignore JSON parse error
+    }
+
+    if (existingId) {
+      setActiveAgentConversationId(existingId);
+    } else {
+      const latestMessage = thread.messages.at(-1);
+      requestNewAgentChat({
+        type: "gmail-thread",
+        threadId: thread.id,
+        subject: thread.subject,
+        senderEmail: latestMessage?.from.email ?? null,
+      });
+    }
     setAgentOpen(true);
   }
 
   if (!selectedThreadId) {
     return (
-      <Card className="min-h-[550px]">
-        <CardContent className="flex min-h-[500px] flex-col items-center justify-center text-center">
+      <Card className="h-full min-h-full w-full min-w-0 border-0 rounded-none shadow-none ring-0 md:min-h-[550px] md:rounded-xl md:border md:shadow-sm">
+        <CardContent className="flex h-full min-h-[500px] flex-col items-center justify-center text-center">
           <div className="bg-muted flex size-14 items-center justify-center rounded-full">
             <MailOpen className="text-muted-foreground size-6" />
           </div>
@@ -148,7 +177,7 @@ export function ThreadReader({
   }
 
   return (
-    <Card className="min-h-[550px] min-w-0">
+    <Card className="h-full min-h-full w-full min-w-0 border-0 rounded-none shadow-none ring-0 md:min-h-[550px] md:rounded-xl md:border md:shadow-sm">
       <Sheet open={agentOpen} onOpenChange={setAgentOpen}>
         <SheetContent
           side="right"
@@ -217,17 +246,36 @@ export function ThreadReader({
 
       {thread ? (
         <>
-          <CardHeader className="border-b">
+          <CardHeader className="border-b px-4 py-3 md:px-6 md:py-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <CardTitle className="text-xl">{thread.subject}</CardTitle>
-                <CardDescription className="mt-1">
-                  {thread.messageCount} message
-                  {thread.messageCount === 1 ? "" : "s"} in this conversation
-                </CardDescription>
+              <div className="flex min-w-0 items-start gap-2">
+                {onClose || selectedThreadId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="mt-0.5 shrink-0 md:hidden"
+                    aria-label="Back to inbox"
+                    onClick={() => {
+                      if (onClose) onClose();
+                      else useWorkspaceStore.getState().selectThread(null);
+                    }}
+                  >
+                    <ChevronLeft />
+                  </Button>
+                ) : null}
+                <div className="min-w-0">
+                  <CardTitle className="text-lg font-semibold sm:text-xl">
+                    {thread.subject}
+                  </CardTitle>
+                  <CardDescription className="mt-0.5 text-xs sm:text-sm">
+                    {thread.messageCount} message
+                    {thread.messageCount === 1 ? "" : "s"} in this conversation
+                  </CardDescription>
+                </div>
               </div>
 
-              <div className="flex shrink-0 items-start gap-1">
+              <div className="flex w-full shrink-0 items-center justify-center sm:w-auto sm:justify-start">
                 <ThreadActions
                   threadId={thread.id}
                   messageId={thread.messages.at(-1)?.id ?? null}
@@ -241,7 +289,7 @@ export function ThreadReader({
             </div>
           </CardHeader>
 
-          <CardContent className="max-w-full min-w-0 space-y-5 overflow-x-hidden">
+          <CardContent className="max-w-full min-w-0 space-y-5 overflow-x-hidden p-3 sm:p-6">
             {thread.messages.map((message) => {
               const regularAttachments = message.attachments.filter(
                 (attachment) => !attachment.inline,
@@ -250,7 +298,7 @@ export function ThreadReader({
               return (
                 <article
                   key={message.id}
-                  className="border-border max-w-full min-w-0 overflow-hidden rounded-xl border p-4"
+                  className="border-border max-w-full min-w-0 overflow-hidden border-b py-4 last:border-b-0 sm:rounded-xl sm:border sm:p-4"
                 >
                   <header className="flex items-start gap-3">
                     <div className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-full">
@@ -352,14 +400,14 @@ function MessageBody({ message }: { message: ThreadMessage }) {
 
 function ThreadSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
+    <div className="space-y-4 p-1 md:p-3">
+      <div className="space-y-2 px-2 py-1">
         <Skeleton className="h-6 w-2/3" />
         <Skeleton className="h-4 w-32" />
       </div>
 
       {Array.from({ length: 2 }).map((_, index) => (
-        <div key={index} className="space-y-4 rounded-xl border p-4">
+        <div key={index} className="space-y-4 rounded-lg border p-3.5 sm:rounded-xl sm:p-4">
           <div className="flex gap-3">
             <Skeleton className="size-10 rounded-full" />
 

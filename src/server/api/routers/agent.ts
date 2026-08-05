@@ -23,11 +23,17 @@ import {
   getAiProviderLabel,
   getDefaultAiModel,
   isAiProvider,
+  normalizeLegacyAiModel,
   type AiProvider,
 } from "@/lib/ai-providers";
+import { ACTION_PREVIEW_PATTERN } from "@/lib/agent-action-preview";
 import { decryptApiKey } from "@/server/ai/api-key-crypto";
 import { isMissingAiSettingsSchema } from "@/server/ai/settings-db";
-import { corsair, getTenantCorsair } from "@/server/corsair";
+import {
+  corsair,
+  getCorsairConnectionStatus,
+  getTenantCorsair,
+} from "@/server/corsair";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { corsairAiProviderKeys, corsairAiSettings } from "@/server/db/schema";
 import { createRawEmail } from "@/server/email/create-raw-email";
@@ -77,27 +83,13 @@ const agentCalendarEventSchema = z.object({
   description: z.string().max(20_000).optional(),
   location: z.string().trim().max(1_000).optional(),
   attendees: z.array(agentEmailAddress).max(100).optional(),
-  startsAt: z
-    .string()
-    .refine((value) => Number.isFinite(Date.parse(value)), {
-      message: "Use an RFC 3339 date and time with a UTC offset.",
-    })
-    .refine((value) => /(?:Z|[+-]\d{2}:\d{2})$/i.test(value), {
-      message: "Include Z or an explicit UTC offset in the start time.",
-    }),
-  endsAt: z
-    .string()
-    .refine((value) => Number.isFinite(Date.parse(value)), {
-      message: "Use an RFC 3339 date and time with a UTC offset.",
-    })
-    .refine((value) => /(?:Z|[+-]\d{2}:\d{2})$/i.test(value), {
-      message: "Include Z or an explicit UTC offset in the end time.",
-    }),
+  startsAt: z.iso.datetime({ offset: true }),
+  endsAt: z.iso.datetime({ offset: true }),
 });
 const agentCalendarRangeSchema = z
   .object({
-    timeMin: z.iso.datetime(),
-    timeMax: z.iso.datetime(),
+    timeMin: z.iso.datetime({ offset: true }),
+    timeMax: z.iso.datetime({ offset: true }),
   })
   .superRefine((value, context) => {
     const start = new Date(value.timeMin).getTime();
@@ -117,8 +109,8 @@ const agentCalendarUpdateSchema = z
     title: z.string().trim().min(1).max(500).optional(),
     description: z.string().max(20_000).optional(),
     location: z.string().trim().max(1_000).optional(),
-    startsAt: z.iso.datetime().optional(),
-    endsAt: z.iso.datetime().optional(),
+    startsAt: z.iso.datetime({ offset: true }).optional(),
+    endsAt: z.iso.datetime({ offset: true }).optional(),
     addAttendees: z.array(agentEmailAddress).max(100).optional(),
     removeAttendees: z.array(agentEmailAddress).max(100).optional(),
   })
@@ -219,9 +211,17 @@ async function waitForGeminiRequestSlot(apiKey: string, signal?: AbortSignal) {
   );
 
   if (scheduledAt > now) {
+    const reservationTime = scheduledAt + GEMINI_MIN_REQUEST_INTERVAL_MS;
     await new Promise<void>((resolve, reject) => {
       const onAbort = () => {
         clearTimeout(timeout);
+        if (nextGeminiRequestAtByKey.get(throttleKey) === reservationTime) {
+          if (scheduledAt <= Date.now()) {
+            nextGeminiRequestAtByKey.delete(throttleKey);
+          } else {
+            nextGeminiRequestAtByKey.set(throttleKey, scheduledAt);
+          }
+        }
         reject(getAbortReason(signal!));
       };
       const timeout = setTimeout(() => {
@@ -577,16 +577,19 @@ class ReconnectRequiredError extends Error {
   }
 }
 
-function getReconnectPlugin(message: string): ReconnectPlugin | null {
+function getReconnectPlugin(
+  message: string,
+  defaultPlugin?: ReconnectPlugin,
+): ReconnectPlugin | null {
   if (
-    !/invalid_grant|access token (?:has )?expired|refresh token|re-?authenticate|reconnect/i.test(
+    !/invalid_grant|access token (?:has )?expired|refresh token|re-?authenticate|reconnect|expired or revoked/i.test(
       message,
     )
   ) {
     return null;
   }
 
-  if (/calendar|event|invite|schedule/i.test(message)) {
+  if (/calendar|event|invite|schedule|googlecalendar/i.test(message)) {
     return "googlecalendar";
   }
 
@@ -594,7 +597,7 @@ function getReconnectPlugin(message: string): ReconnectPlugin | null {
     return "gmail";
   }
 
-  return null;
+  return defaultPlugin ?? "gmail";
 }
 
 function reconnectReply(plugin: ReconnectPlugin) {
@@ -786,55 +789,67 @@ function normalizeAgentEmailBody(body: string) {
 
 function getConfirmedWriteResult(error: MaxTurnsExceededError) {
   const outputs = getToolCallOutputs(error);
-  const output = outputs.find(
+  const matchingOutputs = outputs.filter(
     (item) =>
       item.startsWith(GMAIL_SEND_RESULT_PREFIX) ||
       item.startsWith(CALENDAR_CREATE_RESULT_PREFIX) ||
       item.startsWith(AGENT_WRITE_RESULT_PREFIX),
   );
 
-  if (!output) return null;
+  if (matchingOutputs.length === 0) return null;
 
-  try {
-    const isCalendarResult = output.startsWith(CALENDAR_CREATE_RESULT_PREFIX);
-    const isGenericResult = output.startsWith(AGENT_WRITE_RESULT_PREFIX);
-    const prefix = isGenericResult
-      ? AGENT_WRITE_RESULT_PREFIX
-      : isCalendarResult
-        ? CALENDAR_CREATE_RESULT_PREFIX
-        : GMAIL_SEND_RESULT_PREFIX;
-    const result = JSON.parse(output.slice(prefix.length)) as {
-      success: boolean;
-      completed?: number;
-      sent?: number;
-      message?: string;
-      error?: string;
-    };
+  const parsed = matchingOutputs
+    .map((output) => {
+      const isCalendarResult = output.startsWith(CALENDAR_CREATE_RESULT_PREFIX);
+      const isGenericResult = output.startsWith(AGENT_WRITE_RESULT_PREFIX);
+      const prefix = isGenericResult
+        ? AGENT_WRITE_RESULT_PREFIX
+        : isCalendarResult
+          ? CALENDAR_CREATE_RESULT_PREFIX
+          : GMAIL_SEND_RESULT_PREFIX;
 
-    if (result.success) {
-      if (result.message) return result.message;
-      const completed = result.completed ?? result.sent ?? 1;
-
-      if (isCalendarResult) {
-        return completed === 1
-          ? "Meeting added to your Google Calendar successfully."
-          : `${completed} meetings added to your Google Calendar successfully.`;
+      try {
+        const result = JSON.parse(output.slice(prefix.length)) as {
+          success: boolean;
+          completed?: number;
+          sent?: number;
+          message?: string;
+          error?: string;
+        };
+        return { isCalendarResult, isGenericResult, result };
+      } catch {
+        return null;
       }
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null);
 
+  const failed = parsed.find((item) => !item.result.success);
+  const selected = failed ?? parsed[0];
+  if (!selected) return null;
+
+  const { isCalendarResult, result } = selected;
+
+  if (result.success) {
+    if (result.message) return result.message;
+    const completed = result.completed ?? result.sent ?? 1;
+
+    if (isCalendarResult) {
       return completed === 1
-        ? "Email sent successfully."
-        : `${completed} emails sent successfully.`;
+        ? "Meeting added to your Google Calendar successfully."
+        : `${completed} meetings added to your Google Calendar successfully.`;
     }
 
-    return (
-      result.error ??
-      (isCalendarResult
-        ? "Google Calendar could not create the approved meeting."
-        : "Gmail could not send the approved email.")
-    );
-  } catch {
-    return null;
+    return completed === 1
+      ? "Message sent via Gmail successfully."
+      : `${completed} messages sent via Gmail successfully.`;
   }
+
+  return (
+    result.error ??
+    (isCalendarResult
+      ? "Google Calendar could not create the approved meeting."
+      : "Gmail could not send the approved email.")
+  );
 }
 
 export const agentRouter = createTRPCRouter({
@@ -861,11 +876,7 @@ export const agentRouter = createTRPCRouter({
     const configuredModel = usingByok
       ? (settings?.model ?? getDefaultAiModel(provider))
       : env.GEMINI_AGENT_MODEL;
-    const model =
-      provider === "gemini" &&
-      /^(?:models\/)?gemini-2\.0-flash(?:-lite)?$/i.test(configuredModel)
-        ? getDefaultAiModel("gemini")
-        : configuredModel;
+    const model = normalizeLegacyAiModel(provider, configuredModel);
     let encryptedApiKey: string | null | undefined;
 
     if (usingByok) {
@@ -962,9 +973,9 @@ export const agentRouter = createTRPCRouter({
         parameters: agentCalendarRangeSchema,
         execute: async ({ timeMin, timeMax }) => {
           try {
-            const connectionStatus = await corsair.manage.connectionStatus.get({
-              tenantId: ctx.corsairTenantId,
-            });
+            const connectionStatus = await getCorsairConnectionStatus(
+              ctx.corsairTenantId,
+            );
 
             if (connectionStatus.googlecalendar !== "connected") {
               failedReconnectPlugin = "googlecalendar";
@@ -1002,14 +1013,14 @@ export const agentRouter = createTRPCRouter({
           } catch (error) {
             console.error("Agent Google Calendar list failed:", error);
             const errorText = getErrorText(error);
-            const calendarAuthExpired =
-              /invalid_grant|access token (?:has )?expired|refresh token|expired or revoked/i.test(
-                errorText,
-              );
+            const reconnectPlugin = getReconnectPlugin(
+              errorText,
+              "googlecalendar",
+            );
 
-            if (calendarAuthExpired) {
-              failedReconnectPlugin = "googlecalendar";
-              return reconnectReply("googlecalendar");
+            if (reconnectPlugin) {
+              failedReconnectPlugin = reconnectPlugin;
+              return reconnectReply(reconnectPlugin);
             }
 
             return "Google Calendar could not load the requested date range.";
@@ -1026,9 +1037,9 @@ export const agentRouter = createTRPCRouter({
         }),
         execute: async ({ query, maxResults }) => {
           try {
-            const connectionStatus = await corsair.manage.connectionStatus.get({
-              tenantId: ctx.corsairTenantId,
-            });
+            const connectionStatus = await getCorsairConnectionStatus(
+              ctx.corsairTenantId,
+            );
 
             if (connectionStatus.gmail !== "connected") {
               failedReconnectPlugin = "gmail";
@@ -1049,7 +1060,8 @@ export const agentRouter = createTRPCRouter({
                 tenantCorsair.gmail.api.threads.get({
                   userId: "me",
                   id,
-                  format: "full",
+                  format: "metadata",
+                  metadataHeaders: ["Subject", "From", "To", "Date"],
                 }),
               ),
             );
@@ -1110,9 +1122,9 @@ export const agentRouter = createTRPCRouter({
         }),
         execute: async ({ maxResults }) => {
           try {
-            const connectionStatus = await corsair.manage.connectionStatus.get({
-              tenantId: ctx.corsairTenantId,
-            });
+            const connectionStatus = await getCorsairConnectionStatus(
+              ctx.corsairTenantId,
+            );
             if (connectionStatus.gmail !== "connected") {
               failedReconnectPlugin = "gmail";
               return reconnectReply("gmail");
@@ -1130,7 +1142,7 @@ export const agentRouter = createTRPCRouter({
                 tenantCorsair.gmail.api.drafts.get({
                   userId: "me",
                   id,
-                  format: "full",
+                  format: "metadata",
                 }),
               ),
             );
@@ -1602,6 +1614,7 @@ export const agentRouter = createTRPCRouter({
                   calendarId: "primary",
                   id: change.eventId,
                   event: {
+                    ...existing,
                     summary: change.title ?? existing.summary,
                     description:
                       change.description ?? existing.description ?? undefined,
@@ -1785,9 +1798,7 @@ export const agentRouter = createTRPCRouter({
             updateCalendarEventsTool,
             cancelCalendarEventsTool,
             ...corsairTools.filter(
-              (item) =>
-                item.name !== "run_script" &&
-                !WRITE_TOOL_NAME_PATTERN.test(item.name),
+              (item) => !WRITE_TOOL_NAME_PATTERN.test(item.name),
             ),
           ]
         : [
@@ -1795,9 +1806,7 @@ export const agentRouter = createTRPCRouter({
             searchGmailThreadsTool,
             listGmailDraftsTool,
             ...corsairTools.filter(
-              (item) =>
-                item.name !== "run_script" &&
-                !WRITE_TOOL_NAME_PATTERN.test(item.name),
+              (item) => !WRITE_TOOL_NAME_PATTERN.test(item.name),
             ),
           ];
 
@@ -1973,10 +1982,7 @@ ${
 
       const trimmedReply = rawReply.trimStart();
       const hasQueueMarker = trimmedReply.startsWith(QUEUE_ACTION_MARKER);
-      const looksLikeWritePreview =
-        /^(?:I will|I'll)\s+(?:add|archive|cancel|compose|create|delete|draft|forward|invite|mark|modify|move|remove|reply|reschedule|save|schedule|send|trash|untrash|update)\b/i.test(
-          trimmedReply,
-        );
+      const looksLikeWritePreview = ACTION_PREVIEW_PATTERN.test(trimmedReply);
       const requiresApproval =
         !input.confirmed && (hasQueueMarker || looksLikeWritePreview);
       const agentReply = hasQueueMarker

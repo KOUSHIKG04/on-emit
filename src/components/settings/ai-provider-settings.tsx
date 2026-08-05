@@ -132,12 +132,12 @@ export function AiProviderSettings({ className }: { className?: string }) {
   }, [settingsQuery.error]);
 
   return (
-    <Card className={cn(className)}>
-      <CardHeader className="border-b">
+    <Card className={cn("border-x-0 border-t-0 rounded-none md:rounded-xl md:border", className)}>
+      <CardHeader className="border-b p-4 md:p-6">
         <CardTitle>Bring your own key</CardTitle>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="p-4 md:p-6">
         {!showByokForm ? (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -170,10 +170,13 @@ export function AiProviderSettings({ className }: { className?: string }) {
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="grid content-start gap-2">
-                <Label id="ai-provider-label">Provider</Label>
+                <Label id="ai-provider-label" htmlFor="ai-provider-trigger">
+                  Provider
+                </Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    aria-labelledby="ai-provider-label"
+                    id="ai-provider-trigger"
+                    aria-labelledby="ai-provider-label ai-provider-trigger"
                     render={
                       <Button
                         type="button"
@@ -253,10 +256,13 @@ export function AiProviderSettings({ className }: { className?: string }) {
               </div>
 
               <div className="grid content-start gap-2 md:col-span-2 xl:col-span-1">
-                <Label id="ai-model-label">Model</Label>
+                <Label id="ai-model-label" htmlFor="ai-model-trigger">
+                  Model
+                </Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    aria-labelledby="ai-model-label"
+                    id="ai-model-trigger"
+                    aria-labelledby="ai-model-label ai-model-trigger"
                     render={
                       <Button
                         type="button"
@@ -315,7 +321,7 @@ export function AiProviderSettings({ className }: { className?: string }) {
               </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-3">
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
               <Button
                 type="button"
                 variant="outline"

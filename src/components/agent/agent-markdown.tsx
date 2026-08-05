@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 
 export function AgentMarkdown({ children }: { children: string }) {
   return (
-    <div className="max-w-full min-w-0 space-y-2 [overflow-wrap:anywhere]">
+    <div className="max-w-full min-w-0 space-y-2 break-words [overflow-wrap:break-word]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         skipHtml

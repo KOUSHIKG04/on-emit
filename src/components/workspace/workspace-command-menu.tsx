@@ -56,7 +56,7 @@ export function WorkspaceCommandMenu({ className }: { className?: string }) {
       router.push(href);
     }
 
-    function quickAction(mode: "email" | "event") {
+    function quickAction(mode: "email" | "event" | "agent") {
       setOpen(false);
       setQuickActionMode(mode);
       setQuickActionOpen(true);
@@ -127,6 +127,14 @@ export function WorkspaceCommandMenu({ className }: { className?: string }) {
         keywords: "calendar invite schedule meeting",
         icon: CalendarPlus,
         run: () => quickAction("event"),
+      },
+      {
+        id: "ask-agent",
+        group: "Actions",
+        label: "Ask agent",
+        keywords: "assistant gmail calendar automate corsair",
+        icon: Ghost2,
+        run: () => quickAction("agent"),
       },
     ];
   }, [router, setQuickActionMode, setQuickActionOpen]);
