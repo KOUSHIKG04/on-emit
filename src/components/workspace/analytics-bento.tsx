@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import {
   ArrowRight,
@@ -10,6 +11,8 @@ import {
   Clock3,
   Ghost2,
   Inbox,
+  LoaderCircle,
+  Mail,
   RefreshCw,
 } from "@/components/icons";
 import { Area } from "@/components/dither-kit/area";
@@ -127,17 +130,13 @@ function parseCalendarDate(value: string) {
   );
 }
 
-function createDayBuckets(direction: "past" | "future") {
+function createDayBuckets() {
   const today = new Date();
 
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(today);
     date.setHours(0, 0, 0, 0);
-    date.setDate(
-      direction === "past"
-        ? today.getDate() - (6 - index)
-        : today.getDate() + index,
-    );
+    date.setDate(today.getDate() + index);
 
     return {
       key: getLocalDayKey(date),
@@ -154,19 +153,38 @@ function createDayBuckets(direction: "past" | "future") {
 function formatEmailActivity(
   rows: Array<{ date: string; messages: number; unread: number }> | undefined,
 ) {
-  return (rows ?? []).map((row) => ({
-    key: row.date,
-    label: new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(
-      new Date(`${row.date}T12:00:00Z`),
-    ),
-    messages: row.messages,
-    unread: row.unread,
-    meetings: 0,
-  }));
+  if (rows && rows.length > 0) {
+    return rows.map((row) => ({
+      key: row.date,
+      label: new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(
+        parseCalendarDate(row.date),
+      ),
+      messages: row.messages,
+      unread: row.unread,
+      meetings: 0,
+    }));
+  }
+
+  const today = new Date();
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(today.getDate() - 6 + index);
+
+    return {
+      key: getLocalDayKey(date),
+      label: new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(
+        date,
+      ),
+      messages: 0,
+      unread: 0,
+      meetings: 0,
+    };
+  });
 }
 
 function formatMeetingActivity(events: Array<{ start: string }> | undefined) {
-  const buckets = createDayBuckets("future");
+  const buckets = createDayBuckets();
   const bucketsByDate = new Map(buckets.map((bucket) => [bucket.key, bucket]));
 
   for (const event of events ?? []) {
@@ -393,20 +411,31 @@ export function AnalyticsDrawerContent({
     });
   }, [open, pastRange]);
 
-  const email = api.gmail.activity.useQuery(undefined, {
+  const connectionStatus = api.integrations.status.useQuery(undefined, {
     enabled: open,
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
+  const gmailConnected = connectionStatus.data?.gmail === "connected";
+  const calendarConnected =
+    connectionStatus.data?.googleCalendar === "connected";
+  const gmailQueryEnabled = gmailConnected || connectionStatus.isError;
+  const calendarQueryEnabled = calendarConnected || connectionStatus.isError;
+
+  const email = api.gmail.activity.useQuery(undefined, {
+    enabled: open && gmailQueryEnabled,
     staleTime: 300_000,
     refetchOnWindowFocus: false,
   });
   const calendar = api.calendar.upcoming.useQuery(undefined, {
-    enabled: open,
+    enabled: open && calendarQueryEnabled,
     staleTime: 120_000,
     refetchOnWindowFocus: false,
   });
   const pastCalendar = api.calendar.range.useQuery(
     pastRange ?? fallbackPastRange,
     {
-      enabled: open && Boolean(pastRange),
+      enabled: open && Boolean(pastRange) && calendarQueryEnabled,
       staleTime: 300_000,
       refetchOnWindowFocus: false,
     },
@@ -423,79 +452,180 @@ export function AnalyticsDrawerContent({
   );
 
   const isRefreshing =
-    email.isFetching || calendar.isFetching || pastCalendar.isFetching;
+    connectionStatus.isFetching ||
+    email.isFetching ||
+    calendar.isFetching ||
+    pastCalendar.isFetching;
+  const gmailDisconnected =
+    (connectionStatus.data !== undefined && !gmailConnected) ||
+    email.error?.data?.code === "PRECONDITION_FAILED";
+  const calendarDisconnected =
+    (connectionStatus.data !== undefined && !calendarConnected) ||
+    calendar.error?.data?.code === "PRECONDITION_FAILED" ||
+    pastCalendar.error?.data?.code === "PRECONDITION_FAILED";
+  const connect = api.integrations.connect.useMutation({
+    onSuccess(data) {
+      window.location.assign(data.connectUrl);
+    },
+    onError(error, variables) {
+      toast.error(
+        `Could not connect ${variables.plugin === "gmail" ? "Gmail" : "Google Calendar"}`,
+        { description: error.message },
+      );
+    },
+  });
+
+  function connectService(plugin: "gmail" | "googlecalendar") {
+    connect.mutate({
+      plugin,
+      accountId: connectionStatus.data?.activeAccountId,
+    });
+  }
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
-      <ChartBentoCard
-        title="Email activity"
-        description="Inbox volume and unread mail across the last seven days"
-        loading={email.isLoading}
-        unavailable={Boolean(email.error)}
-        action={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="Refresh analytics"
-            aria-label="Refresh analytics"
-            disabled={isRefreshing}
-            onClick={() =>
-              void Promise.all([
-                email.refetch(),
-                calendar.refetch(),
-                pastCalendar.refetch(),
-              ])
-            }
+      {gmailDisconnected ? (
+        <AnalyticsConnectionCard
+          name="Gmail"
+          description="Connect Gmail to view inbox volume and unread activity."
+          icon={Mail}
+          pending={connect.isPending && connect.variables?.plugin === "gmail"}
+          disabled={connect.isPending}
+          onConnect={() => connectService("gmail")}
+        />
+      ) : (
+        <ChartBentoCard
+          title="Email activity"
+          description="Inbox volume and unread mail across the last seven days"
+          loading={connectionStatus.isLoading || email.isLoading}
+          unavailable={Boolean(email.error)}
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              title="Refresh analytics"
+              aria-label="Refresh analytics"
+              disabled={isRefreshing}
+              onClick={() =>
+                void Promise.all([
+                  connectionStatus.refetch(),
+                  email.refetch(),
+                  calendar.refetch(),
+                  pastCalendar.refetch(),
+                ])
+              }
+            >
+              <RefreshCw className={cn(isRefreshing && "animate-spin")} />
+            </Button>
+          }
+        >
+          <AreaChart
+            data={emailActivity}
+            config={emailChartConfig}
+            animate={false}
+            className="h-60 sm:h-72"
+            margins={{ top: 18, left: 30, right: 12, bottom: 24 }}
           >
-            <RefreshCw className={cn(isRefreshing && "animate-spin")} />
-          </Button>
-        }
-      >
-        <AreaChart
-          data={emailActivity}
-          config={emailChartConfig}
-          animate={false}
-          className="h-60 sm:h-72"
-          margins={{ top: 18, left: 30, right: 12, bottom: 24 }}
-        >
-          <Grid />
-          <XAxis dataKey="label" />
-          <YAxis tickFormatter={(value) => Math.round(value).toString()} />
-          <Area dataKey="messages" variant="gradient" />
-          <Area dataKey="unread" variant="dotted" />
-          <Tooltip labelKey="label" variant="frosted-glass" />
-        </AreaChart>
-      </ChartBentoCard>
+            <Grid />
+            <XAxis dataKey="label" />
+            <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+            <Area dataKey="messages" variant="gradient" />
+            <Area dataKey="unread" variant="dotted" />
+            <Tooltip labelKey="label" variant="frosted-glass" />
+          </AreaChart>
+        </ChartBentoCard>
+      )}
 
-      <ChartBentoCard
-        title="Calendar load"
-        description="Meetings and events scheduled for the next seven days"
-        loading={calendar.isLoading}
-        unavailable={Boolean(calendar.error)}
-      >
-        <BarChart
-          data={meetingActivity}
-          config={meetingChartConfig}
-          animate={false}
-          className="h-60 sm:h-72"
-          margins={{ top: 18, left: 30, right: 12, bottom: 24 }}
-        >
-          <Grid />
-          <XAxis dataKey="label" />
-          <YAxis tickFormatter={(value) => Math.round(value).toString()} />
-          <Bar dataKey="meetings" variant="hatched" />
-          <Tooltip labelKey="label" variant="frosted-glass" />
-        </BarChart>
-      </ChartBentoCard>
+      {calendarDisconnected ? (
+        <AnalyticsConnectionCard
+          name="Google Calendar"
+          description="Connect Calendar to view schedule load and meeting attendance."
+          icon={CalendarDays}
+          pending={
+            connect.isPending && connect.variables?.plugin === "googlecalendar"
+          }
+          disabled={connect.isPending}
+          onConnect={() => connectService("googlecalendar")}
+        />
+      ) : (
+        <>
+          <ChartBentoCard
+            title="Calendar load"
+            description="Meetings and events scheduled for the next seven days"
+            loading={connectionStatus.isLoading || calendar.isLoading}
+            unavailable={Boolean(calendar.error)}
+          >
+            <BarChart
+              data={meetingActivity}
+              config={meetingChartConfig}
+              animate={false}
+              className="h-60 sm:h-72"
+              margins={{ top: 18, left: 30, right: 12, bottom: 24 }}
+            >
+              <Grid />
+              <XAxis dataKey="label" />
+              <YAxis tickFormatter={(value) => Math.round(value).toString()} />
+              <Bar dataKey="meetings" variant="hatched" />
+              <Tooltip labelKey="label" variant="frosted-glass" />
+            </BarChart>
+          </ChartBentoCard>
 
-      <MeetingAttendanceCard
-        events={pastCalendar.data ?? []}
-        userEmail={userEmail}
-        loading={pastCalendar.isLoading || !pastRange}
-        unavailable={Boolean(pastCalendar.error)}
-      />
+          <MeetingAttendanceCard
+            events={pastCalendar.data ?? []}
+            userEmail={userEmail}
+            loading={
+              connectionStatus.isLoading || pastCalendar.isLoading || !pastRange
+            }
+            unavailable={Boolean(pastCalendar.error)}
+          />
+        </>
+      )}
     </div>
+  );
+}
+
+function AnalyticsConnectionCard({
+  name,
+  description,
+  icon: Icon,
+  pending,
+  disabled,
+  onConnect,
+}: {
+  name: string;
+  description: string;
+  icon: typeof Mail;
+  pending: boolean;
+  disabled: boolean;
+  onConnect: () => void;
+}) {
+  return (
+    <Card className="py-0 shadow-none ring-0">
+      <CardContent className="flex min-h-36 flex-col gap-5 p-5 sm:p-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-xl">
+            <Icon className="size-[18px]" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold">{name}</p>
+            <p className="text-muted-foreground mt-0.5 text-sm leading-5">
+              {description}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          className="mt-auto w-full"
+          disabled={disabled}
+          onClick={onConnect}
+        >
+          {pending ? <LoaderCircle className="animate-spin" /> : null}
+          {pending ? "Opening..." : "Connect"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

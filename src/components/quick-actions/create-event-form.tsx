@@ -19,6 +19,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -76,6 +78,18 @@ const durationOptions = [
   { value: 90, label: "1.5 hours" },
   { value: 120, label: "2 hours" },
 ] as const;
+
+const timeOptions = Array.from({ length: 96 }, (_, index) => {
+  const hours = Math.floor(index / 4);
+  const minutes = (index % 4) * 15;
+  const value = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  const displayHour = hours % 12 || 12;
+
+  return {
+    value,
+    label: `${displayHour}:${String(minutes).padStart(2, "0")} ${hours < 12 ? "AM" : "PM"}`,
+  };
+});
 
 export function CreateEventForm() {
   const utils = api.useUtils();
@@ -256,7 +270,7 @@ export function CreateEventForm() {
         })}
       />
 
-      <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_120px_150px]">
+      <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_145px_150px]">
         <Field data-invalid={Boolean(errors.startsAt)}>
           <FieldLabel htmlFor="quick-event-start">Starts</FieldLabel>
           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
@@ -292,17 +306,46 @@ export function CreateEventForm() {
 
         <Field data-invalid={Boolean(errors.startsAt)}>
           <FieldLabel htmlFor="quick-event-time">Time</FieldLabel>
-          <div className="relative">
-            <Clock3 className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              id="quick-event-time"
-              type="time"
-              value={selectedTime}
-              className="pl-9"
-              aria-invalid={Boolean(errors.startsAt)}
-              onChange={(event) => changeStartTime(event.target.value)}
-            />
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  id="quick-event-time"
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between px-3 font-normal"
+                  aria-invalid={Boolean(errors.startsAt)}
+                />
+              }
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <Clock3 className="text-muted-foreground" />
+                <span className="truncate">
+                  {timeOptions.find((option) => option.value === selectedTime)
+                    ?.label ?? selectedTime}
+                </span>
+              </span>
+              <ChevronDown className="text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="max-h-72 min-w-(--anchor-width) overflow-y-auto"
+            >
+              <DropdownMenuRadioGroup
+                value={selectedTime}
+                onValueChange={changeStartTime}
+              >
+                {timeOptions.map((option) => (
+                  <DropdownMenuRadioItem
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </Field>
 
         <Field data-invalid={Boolean(errors.durationMinutes)}>

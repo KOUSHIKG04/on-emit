@@ -30,7 +30,7 @@ export function PieChart({
 }) {
   const { ref, size } = useChartDimensions<HTMLDivElement>();
   const [hoveredName, setHoveredName] = useState<string | null>(null);
-  const patternPrefix = useId().replaceAll(":", "");
+  const patternPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const total = data.reduce((sum, datum) => sum + Math.max(0, datum.value), 0);
   const chartData = total > 0 ? data : [{ name: "empty", value: 1 }];
   const diameter = Math.max(0, Math.min(size.width, size.height));

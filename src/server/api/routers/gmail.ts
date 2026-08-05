@@ -55,6 +55,33 @@ function parseSender(fromHeader: string | null) {
   };
 }
 
+function decodeGmailSnippet(value: string) {
+  const namedEntities: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    quot: '"',
+  };
+
+  return value.replace(
+    /&(?:#(\d+)|#x([\da-f]+)|([a-z]+));/gi,
+    (entity, decimal: string, hexadecimal: string, named: string) => {
+      const codePoint = decimal
+        ? Number(decimal)
+        : hexadecimal
+          ? Number.parseInt(hexadecimal, 16)
+          : null;
+      if (codePoint !== null) {
+        return Number.isInteger(codePoint) && codePoint <= 0x10ffff
+          ? String.fromCodePoint(codePoint)
+          : entity;
+      }
+      return namedEntities[named.toLowerCase()] ?? entity;
+    },
+  );
+}
+
 function toISOString(
   value: string | number | Date | null | undefined,
 ): string | null {
@@ -163,7 +190,6 @@ async function listThreadSummaries(
         userId: "me",
         id: threadId,
         format: "metadata",
-        metadataHeaders: ["From", "Subject"],
       }),
     ),
   );
@@ -180,10 +206,11 @@ async function listThreadSummaries(
       subject: getHeader(headers, "Subject") ?? "(No subject)",
       senderName: sender.name,
       senderEmail: sender.email,
-      snippet:
+      snippet: decodeGmailSnippet(
         latestMessage?.snippet ??
-        thread.snippet ??
-        "No message preview available.",
+          thread.snippet ??
+          "No message preview available.",
+      ),
       receivedAt: toISOString(latestMessage?.internalDate),
       unread: (thread.messages ?? []).some((message) =>
         message.labelIds?.includes("UNREAD"),
@@ -293,42 +320,58 @@ export const gmailRouter = createTRPCRouter({
     try {
       await ensureGmailConnected(ctx.corsairTenantId);
       const tenantCorsair = getTenantCorsair(ctx.corsairTenantId);
+
+      // Fetch actual inbox threads to calculate daily activity
+      const inboxThreads = await listThreadSummaries(
+        tenantCorsair,
+        "in:inbox",
+        100,
+      );
+
       const now = new Date();
-      const endOfToday = new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
-      );
+      // Build 7 calendar day buckets ending today
+      const days = Array.from({ length: 7 }, (_, index) => {
+        const d = new Date(now);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - (6 - index));
 
-      return await Promise.all(
-        Array.from({ length: 7 }, async (_, index) => {
-          const start = new Date(endOfToday);
-          start.setUTCDate(start.getUTCDate() - (7 - index));
-          const end = new Date(start);
-          end.setUTCDate(end.getUTCDate() + 1);
-          const date = start.toISOString().slice(0, 10);
-          const range = `after:${Math.floor(start.getTime() / 1_000)} before:${Math.floor(end.getTime() / 1_000)}`;
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const dateStr = `${year}-${month}-${day}`;
 
-          const [messages, unread] = await Promise.all([
-            tenantCorsair.gmail.api.messages.list({
-              userId: "me",
-              q: `in:inbox ${range}`,
-              maxResults: 1,
-              includeSpamTrash: false,
-            }),
-            tenantCorsair.gmail.api.messages.list({
-              userId: "me",
-              q: `in:inbox is:unread ${range}`,
-              maxResults: 1,
-              includeSpamTrash: false,
-            }),
-          ]);
+        return {
+          dateStr,
+          timestampStart: d.getTime(),
+          timestampEnd: d.getTime() + 86_400_000,
+          messages: 0,
+          unread: 0,
+        };
+      });
 
-          return {
-            date,
-            messages: messages.resultSizeEstimate ?? 0,
-            unread: unread.resultSizeEstimate ?? 0,
-          };
-        }),
-      );
+      for (const thread of inboxThreads) {
+        const time = thread.receivedAt
+          ? new Date(thread.receivedAt).getTime()
+          : 0;
+        if (!time) continue;
+
+        const matchingDay = days.find(
+          (d) => time >= d.timestampStart && time < d.timestampEnd,
+        );
+
+        if (matchingDay) {
+          matchingDay.messages += thread.messageCount || 1;
+          if (thread.unread) {
+            matchingDay.unread += 1;
+          }
+        }
+      }
+
+      return days.map((d) => ({
+        date: d.dateStr,
+        messages: d.messages,
+        unread: d.unread,
+      }));
     } catch (error) {
       if (error instanceof TRPCError) throw error;
 

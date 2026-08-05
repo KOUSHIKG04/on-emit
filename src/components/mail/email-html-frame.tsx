@@ -69,7 +69,7 @@ export function EmailHtmlFrame({ htmlDocument, title }: EmailHtmlFrameProps) {
     : htmlDocument;
 
   return (
-    <div className="border-border/80 w-full max-w-full overflow-hidden rounded-xl border bg-[#f2f4f8] shadow-sm">
+    <div className="w-full max-w-full overflow-hidden rounded-lg sm:rounded-xl">
       <iframe
         ref={iframeRef}
         title={`Email content: ${title}`}
@@ -81,7 +81,7 @@ export function EmailHtmlFrame({ htmlDocument, title }: EmailHtmlFrameProps) {
           height: `${height}px`,
           overflowY: isCapped ? "auto" : "hidden",
         }}
-        className="block w-full max-w-full border-0 bg-[#f2f4f8]"
+        className="block w-full max-w-full border-0 bg-transparent"
       />
     </div>
   );

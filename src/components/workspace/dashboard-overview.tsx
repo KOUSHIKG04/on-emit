@@ -10,6 +10,7 @@ import {
   CheckSquare2,
   ChevronDown,
   Clock3,
+  Ghost2,
   Inbox,
   MailCheck,
   MailWarning,
@@ -154,7 +155,7 @@ export function DashboardOverview({ userName }: { userName: string }) {
     setNow(new Date());
   }
 
-  function openQuickAction(mode: "email" | "event") {
+  function openQuickAction(mode: "email" | "event" | "agent") {
     setQuickActionMode(mode);
     setCommandPaletteOpen(true);
   }
@@ -290,13 +291,6 @@ export function DashboardOverview({ userName }: { userName: string }) {
         </section>
 
         <section className="flex min-h-0 flex-1 flex-col">
-          {/* <div className="bg-card border-y px-6 py-5 md:px-8">
-            <h2 className="text-xl font-semibold tracking-[-0.02em]">Today</h2>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Review pending work, priorities, and your schedule.
-            </p>
-          </div> */}
-
           <div className="bg-card grid min-h-0 w-full flex-1 grid-cols-1 overflow-hidden border-b xl:grid-cols-10 xl:grid-rows-[auto_minmax(10rem,1fr)_auto]">
             <NeedsAttention
               isLoading={isLoading}
@@ -367,6 +361,7 @@ export function DashboardOverview({ userName }: { userName: string }) {
             <QuickActions
               onComposeEmail={() => openQuickAction("email")}
               onCreateEvent={() => openQuickAction("event")}
+              onAskAgent={() => openQuickAction("agent")}
               onOpenUnreadMail={openUnreadMail}
               onOpenSettings={() => router.push("/settings")}
             />
@@ -528,11 +523,13 @@ function NeedsAttention({
 function QuickActions({
   onComposeEmail,
   onCreateEvent,
+  onAskAgent,
   onOpenUnreadMail,
   onOpenSettings,
 }: {
   onComposeEmail: () => void;
   onCreateEvent: () => void;
+  onAskAgent: () => void;
   onOpenUnreadMail: () => void;
   onOpenSettings: () => void;
 }) {
@@ -542,7 +539,7 @@ function QuickActions({
         <div className="min-w-0">
           <p className="text-sm font-semibold">Quick actions</p>
           <p className="text-muted-foreground mt-1 truncate text-xs">
-            Compose, schedule, search, or configure.
+            Compose, schedule, or delegate to the agent.
           </p>
         </div>
 
@@ -562,6 +559,10 @@ function QuickActions({
             <DropdownMenuItem onClick={onCreateEvent}>
               <CalendarPlus />
               Create calendar event
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onAskAgent}>
+              <Ghost2 />
+              Ask agent
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onOpenUnreadMail}>
               <Inbox />

@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "@/components/icons";
 
+import { ConnectServicePrompt } from "@/components/integrations/connect-service-prompt";
 import { ClientDateTime } from "@/components/shared/client-date-time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -56,7 +57,16 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
     (state) => state.setInboxLabelFilter,
   );
 
+  const connectionStatus = api.integrations.status.useQuery(undefined, {
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
+  const gmailConnected = connectionStatus.data?.gmail === "connected";
+  const gmailConnectionKnown = connectionStatus.data !== undefined;
+  const gmailQueryEnabled = gmailConnected || connectionStatus.isError;
+
   const stats = api.gmail.stats.useQuery(undefined, {
+    enabled: gmailQueryEnabled,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -64,7 +74,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const inbox = api.gmail.inbox.useQuery(
     { maxResults },
     {
-      enabled: mode === "inbox" || mode === "priority",
+      enabled: gmailQueryEnabled && (mode === "inbox" || mode === "priority"),
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
@@ -72,7 +82,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const drafts = api.gmail.drafts.useQuery(
     { maxResults },
     {
-      enabled: mode === "drafts",
+      enabled: gmailQueryEnabled && mode === "drafts",
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
@@ -80,7 +90,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   const archived = api.gmail.archived.useQuery(
     { maxResults },
     {
-      enabled: mode === "archived",
+      enabled: gmailQueryEnabled && mode === "archived",
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
@@ -172,7 +182,9 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
     ].some((value) => value?.toLowerCase().includes(normalizedQuery));
   });
   const gmailDisconnected =
+    (gmailConnectionKnown && !gmailConnected) ||
     activeQuery.error?.data?.code === "PRECONDITION_FAILED";
+  const mailboxReady = !connectionStatus.isLoading && !gmailDisconnected;
   const canLoadMore = Boolean(threads?.length === maxResults);
 
   useEffect(() => {
@@ -201,7 +213,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
   return (
     <Card
       className={cn(
-        "min-h-[550px] w-full min-w-0",
+        "min-h-full w-full min-w-0 border-0 rounded-none shadow-none ring-0 md:min-h-[550px] md:rounded-xl md:border md:shadow-sm",
         sidebar &&
           "bg-sidebar text-sidebar-foreground h-full min-h-0 gap-0 rounded-none py-0 shadow-none ring-0",
       )}
@@ -260,6 +272,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
               size="icon-sm"
               variant="outline"
               aria-label="Compose email"
+              disabled={gmailDisconnected}
               onClick={() => {
                 setQuickActionMode("email");
                 setCommandPaletteOpen(true);
@@ -324,16 +337,19 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
       <CardContent
         className={cn("p-2", sidebar && "min-h-0 flex-1 overflow-y-auto px-2")}
       >
-        {activeQuery.isLoading ? <InboxSkeleton /> : null}
+        {connectionStatus.isLoading ||
+        (activeQuery.isLoading && !gmailDisconnected) ? (
+          <InboxSkeleton />
+        ) : null}
 
         {gmailDisconnected ? (
-          <EmptyState
-            title="Gmail is not connected"
-            description="Open Settings to connect Gmail through Corsair."
+          <ConnectServicePrompt
+            plugin="gmail"
+            accountId={connectionStatus.data?.activeAccountId}
           />
         ) : null}
 
-        {activeQuery.error && !gmailDisconnected ? (
+        {activeQuery.error && mailboxReady ? (
           <EmptyState
             title={`${
               mode === "drafts"
@@ -348,6 +364,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
 
         {!activeQuery.isLoading &&
         !activeQuery.error &&
+        mailboxReady &&
         threads?.length === 0 ? (
           <EmptyState
             title={
@@ -369,6 +386,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
 
         {!activeQuery.isLoading &&
         !activeQuery.error &&
+        mailboxReady &&
         threads &&
         threads.length > 0 &&
         visibleThreads?.length === 0 ? (
@@ -378,7 +396,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
           />
         ) : null}
 
-        {visibleThreads && visibleThreads.length > 0 ? (
+        {mailboxReady && visibleThreads && visibleThreads.length > 0 ? (
           <div className="space-y-1">
             {visibleThreads.map((thread) => {
               const selected = selectedThreadId === thread.id;
@@ -514,7 +532,7 @@ export function InboxPanel({ variant = "card" }: InboxPanelProps) {
         ) : null}
       </CardContent>
 
-      <div className="border-t p-2">
+      <div className={cn("border-t p-2", gmailDisconnected && "hidden")}>
         <Button
           type="button"
           variant="outline"

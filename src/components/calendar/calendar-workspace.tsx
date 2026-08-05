@@ -12,6 +12,7 @@ import {
 } from "@/components/icons";
 
 import { EventActions } from "@/components/calendar/event-actions";
+import { ConnectServicePrompt } from "@/components/integrations/connect-service-prompt";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -130,6 +131,15 @@ export function CalendarWorkspace() {
     (state) => state.setQuickActionMode,
   );
 
+  const connectionStatus = api.integrations.status.useQuery(undefined, {
+    staleTime: 10_000,
+    refetchOnWindowFocus: true,
+  });
+  const calendarConnected =
+    connectionStatus.data?.googleCalendar === "connected";
+  const calendarConnectionKnown = connectionStatus.data !== undefined;
+  const calendarQueryEnabled = calendarConnected || connectionStatus.isError;
+
   const selectedDate = fromDateKey(calendarDate);
   const range = getViewRange(selectedDate, calendarView);
   const eventsQuery = api.calendar.range.useQuery(
@@ -138,10 +148,14 @@ export function CalendarWorkspace() {
       timeMax: range.end.toISOString(),
     },
     {
+      enabled: calendarQueryEnabled,
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
   );
+  const calendarDisconnected =
+    (calendarConnectionKnown && !calendarConnected) ||
+    eventsQuery.error?.data?.code === "PRECONDITION_FAILED";
   const events = calendarVisible ? (eventsQuery.data ?? []) : [];
 
   function navigate(direction: -1 | 1) {
@@ -216,6 +230,7 @@ export function CalendarWorkspace() {
 
         <Button
           type="button"
+          disabled={calendarDisconnected}
           onClick={() => {
             setQuickActionMode("event");
             setCommandPaletteOpen(true);
@@ -226,21 +241,39 @@ export function CalendarWorkspace() {
         </Button>
       </div>
 
-      {eventsQuery.isLoading ? <CalendarLoading /> : null}
-      {eventsQuery.error ? (
+      {connectionStatus.isLoading ||
+      (eventsQuery.isLoading && !calendarDisconnected) ? (
+        <CalendarLoading />
+      ) : null}
+      {calendarDisconnected ? (
+        <ConnectServicePrompt
+          plugin="googlecalendar"
+          accountId={connectionStatus.data?.activeAccountId}
+          className="min-h-96"
+        />
+      ) : null}
+      {eventsQuery.error && !calendarDisconnected ? (
         <CalendarMessage
           title="Calendar could not be loaded"
           description={eventsQuery.error.message}
         />
       ) : null}
-      {!eventsQuery.isLoading && !eventsQuery.error && !calendarVisible ? (
+      {!connectionStatus.isLoading &&
+      !eventsQuery.isLoading &&
+      !eventsQuery.error &&
+      !calendarDisconnected &&
+      !calendarVisible ? (
         <CalendarMessage
           title="Primary calendar is hidden"
           description="Enable it from My calendars in the sidebar."
         />
       ) : null}
 
-      {!eventsQuery.isLoading && !eventsQuery.error && calendarVisible ? (
+      {!connectionStatus.isLoading &&
+      !eventsQuery.isLoading &&
+      !eventsQuery.error &&
+      !calendarDisconnected &&
+      calendarVisible ? (
         calendarView === "month" ? (
           <MonthGrid
             selectedDate={selectedDate}

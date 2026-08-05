@@ -1,6 +1,7 @@
 "use client";
 
-import { CalendarPlus, MailPlus } from "@/components/icons";
+import { AgentChat } from "@/components/agent/agent-chat";
+import { CalendarPlus, Ghost2, MailPlus } from "@/components/icons";
 
 import { CreateEventForm } from "@/components/quick-actions/create-event-form";
 import { SendEmailForm } from "@/components/quick-actions/send-email-form";
@@ -27,6 +28,12 @@ const actionModes = [
     description: "Invite with Calendar",
     icon: CalendarPlus,
   },
+  {
+    value: "agent" as const,
+    label: "Ask agent",
+    description: "Use Gmail and Calendar",
+    icon: Ghost2,
+  },
 ];
 
 export function QuickActionDialog() {
@@ -37,20 +44,28 @@ export function QuickActionDialog() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-xl!">
+      <SheetContent
+        side="right"
+        className={cn(
+          "w-full max-w-full sm:max-w-full md:max-w-full gap-0 p-0",
+          mode === "agent" ? "lg:max-w-4xl!" : "lg:max-w-xl!",
+        )}
+      >
         <SheetHeader className="border-b px-6 py-5">
           <SheetTitle className="text-base font-semibold">
-            Quick action
+            {mode === "agent" ? "Agent quick action" : "Quick action"}
           </SheetTitle>
           <SheetDescription>
-            Send an email or schedule a meeting without leaving your workspace.
+            {mode === "agent"
+              ? "Ask Corsair to work with Gmail and Google Calendar from this drawer."
+              : "Send an email or schedule a meeting without leaving your workspace."}
           </SheetDescription>
         </SheetHeader>
 
         <div
           role="tablist"
           aria-label="Quick action type"
-          className="bg-muted mx-4 mt-4 grid grid-cols-2 gap-1 rounded-xl p-1 sm:mx-6"
+          className="bg-muted mx-4 mt-4 grid grid-cols-3 gap-1 rounded-xl p-1 sm:mx-6"
         >
           {actionModes.map((action) => {
             const Icon = action.icon;
@@ -86,10 +101,25 @@ export function QuickActionDialog() {
 
         <div
           role="tabpanel"
-          aria-label={mode === "email" ? "Send email" : "Create event"}
-          className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6"
+          aria-label={
+            mode === "email"
+              ? "Send email"
+              : mode === "event"
+                ? "Create event"
+                : "Ask agent"
+          }
+          className={cn(
+            "min-h-0 flex-1",
+            mode === "agent" ? "overflow-hidden" : "overflow-y-auto p-4 sm:p-6",
+          )}
         >
-          {mode === "email" ? <SendEmailForm /> : <CreateEventForm />}
+          {mode === "email" ? (
+            <SendEmailForm />
+          ) : mode === "event" ? (
+            <CreateEventForm />
+          ) : (
+            <AgentChat variant="panel" />
+          )}
         </div>
       </SheetContent>
     </Sheet>

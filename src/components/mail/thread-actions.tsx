@@ -160,8 +160,8 @@ export function ThreadActions({
   }, [messageId]);
 
   return (
-    <div className="space-y-3">
-      <div className="bg-muted/45 flex flex-wrap items-center gap-1 rounded-lg border p-1">
+    <div className="w-full space-y-3">
+      <div className="bg-muted/45 flex flex-wrap items-center justify-center gap-1 rounded-lg border p-1 sm:justify-start">
         <Button
           type="button"
           size="icon-sm"
@@ -212,7 +212,6 @@ export function ThreadActions({
           )}
           title="Open email agent"
           aria-label="Open email agent"
-          aria-pressed={agentOpen}
           onClick={onOpenAgent}
         >
           <Ghost2 />

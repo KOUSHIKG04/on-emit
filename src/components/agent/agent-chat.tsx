@@ -76,6 +76,7 @@ import {
   getAiProviderLabel,
   type AiProvider,
 } from "@/lib/ai-providers";
+import { isActionPreview } from "@/lib/agent-action-preview";
 import type { AgentConversationContext } from "@/stores/workspace-store";
 
 type Values = { message: string };
@@ -273,14 +274,8 @@ function conversationTitle(message: string) {
 }
 
 function isActionRevisionRequest(message: string) {
-  return /\b(?:actually|change|correct|edit|instead|make\s+(?:it|that)|modify|move|no[,\s]|rather|reschedule|update)\b/i.test(
+  return /\b(?:actually|instead|no[,.\s]|rather|correct\s+(?:it|that|this)|edit\s+(?:it|that|this)|change\s+(?:it|that|this|to)|modify\s+(?:it|that|this)|make\s+(?:it|that))\b/i.test(
     message,
-  );
-}
-
-function isActionPreview(message: string) {
-  return /^(?:I will|I'll)\s+(?:add|archive|cancel|compose|create|delete|draft|forward|invite|mark|modify|move|remove|reply|reschedule|save|schedule|send|trash|untrash|update)\b/i.test(
-    message.trimStart(),
   );
 }
 
@@ -305,13 +300,17 @@ function reconcileStoredActionRevision(
   ) {
     const assistantMessage = messages[index];
     const revisionMessage = messages[index - 1];
+    const precedingMessage = messages[index - 2];
 
     if (
       assistantMessage?.role !== "assistant" ||
       assistantMessage.actionId ||
       !isActionPreview(assistantMessage.content) ||
       revisionMessage?.role !== "user" ||
-      !isActionRevisionRequest(revisionMessage.content)
+      !isActionRevisionRequest(revisionMessage.content) ||
+      (precedingMessage?.role === "assistant" &&
+        precedingMessage.actionId !== pendingAction.id &&
+        !isActionPreview(precedingMessage.content))
     ) {
       continue;
     }
@@ -448,7 +447,10 @@ function ActionsPanel({
                     )}
                   </div>
                   <div className="mt-1 min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium" title={title}>
+                    <p
+                      className="line-clamp-2 text-sm font-medium"
+                      title={title}
+                    >
                       {title}
                     </p>
                   </div>
@@ -898,11 +900,21 @@ export function AgentChat({
         confirmed,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       });
+      const lastMessage = selectedConversation.messages.at(-1);
+      const pendingAction = [...selectedConversation.actions]
+        .reverse()
+        .find((action) => action.status === "pending");
+      const isDirectlyFollowingPreview =
+        lastMessage?.role === "assistant" &&
+        (lastMessage.actionId === pendingAction?.id ||
+          isActionPreview(lastMessage.content));
+
       const revisedAction =
-        result.requiresApproval && isActionRevisionRequest(content)
-          ? [...selectedConversation.actions]
-              .reverse()
-              .find((action) => action.status === "pending")
+        result.requiresApproval &&
+        pendingAction &&
+        isDirectlyFollowingPreview &&
+        isActionRevisionRequest(content)
+          ? pendingAction
           : undefined;
       const queuedActionId = result.requiresApproval
         ? (revisedAction?.id ?? createId())
@@ -1068,7 +1080,7 @@ export function AgentChat({
       <Sheet open={mobileActionsOpen} onOpenChange={setMobileActionsOpen}>
         <SheetContent
           side="right"
-          className="w-[min(56rem,96vw)] gap-0 p-0 sm:max-w-4xl!"
+          className="w-full max-w-full sm:max-w-full md:max-w-4xl! gap-0 p-0"
           showCloseButton={false}
         >
           <SheetHeader className="sr-only">
@@ -1101,17 +1113,6 @@ export function AgentChat({
       </Sheet>
 
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {variant !== "panel" &&
-        activeConversation?.context?.type === "gmail-thread" ? (
-          // <div className="bg-card flex shrink-0 items-center gap-2 border-b px-4 py-2.5 text-xs">
-          //   <Ghost2 className="text-primary size-4 shrink-0" />
-          //   <span className="text-muted-foreground">Working with</span>
-          //   <span className="min-w-0 truncate font-medium">
-          //     {activeConversation.context.subject}
-          //   </span>
-          // </div>
-          <></>
-        ) : null}
         <div className="min-h-0 flex-1 overflow-hidden">
           {activeConversation ? (
             <MessageScrollerProvider
@@ -1389,7 +1390,7 @@ export function AgentChat({
 
             <Textarea
               rows={2}
-              className="focus-visible:none max-h-32 min-h-14 resize-none rounded-none border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:ring-0 md:text-base dark:bg-transparent"
+              className="max-h-32 min-h-14 resize-none rounded-none border-0 bg-transparent px-2 py-2 text-base shadow-none focus-visible:ring-0 md:text-base dark:bg-transparent"
               placeholder="Tell the agent what to do..."
               disabled={!hydrated || chat.isPending}
               {...register("message")}

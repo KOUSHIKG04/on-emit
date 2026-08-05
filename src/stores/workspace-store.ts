@@ -1,7 +1,7 @@
 import { createStore } from "zustand/vanilla";
 
 export type CalendarView = "month" | "week" | "day";
-export type QuickActionMode = "email" | "event";
+export type QuickActionMode = "email" | "event" | "agent";
 export type InboxLabelFilter = "all" | "unread" | "read";
 export type AgentConversationSummary = {
   id: string;
